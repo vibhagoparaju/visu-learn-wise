@@ -56,7 +56,7 @@ const Dashboard = () => {
         .maybeSingle();
 
       if (plan?.tasks && Array.isArray(plan.tasks)) {
-        setTaskList(plan.tasks as StudyTask[]);
+        setTaskList(plan.tasks as unknown as StudyTask[]);
       } else {
         setTaskList([]);
       }
