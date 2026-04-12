@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Volume2, VolumeX, Palette, GraduationCap, User, Moon, Sun } from "lucide-react";
+import { Sparkles, Volume2, VolumeX, Palette, GraduationCap, User } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const container = {
   hidden: { opacity: 0 },
@@ -13,10 +16,16 @@ const item = {
 };
 
 const SettingsPage = () => {
-  const [tutorName, setTutorName] = useState("VISU");
-  const [difficulty, setDifficulty] = useState<"beginner" | "intermediate" | "advanced">("beginner");
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [personality, setPersonality] = useState<"friendly" | "professional" | "motivating">("friendly");
+  const { profile, user, refreshProfile } = useAuth();
+  const [tutorName, setTutorName] = useState(profile?.tutor_name || "VISU");
+  const [difficulty, setDifficulty] = useState<"beginner" | "intermediate" | "advanced">(
+    (profile?.difficulty_level as any) || "beginner"
+  );
+  const [voiceEnabled, setVoiceEnabled] = useState(profile?.voice_enabled || false);
+  const [personality, setPersonality] = useState<"friendly" | "professional" | "motivating">(
+    (profile?.ai_personality as any) || "friendly"
+  );
+  const [saving, setSaving] = useState(false);
 
   const difficultyConfig = {
     beginner: { emoji: "🌱", desc: "Simple explanations with examples" },
@@ -28,6 +37,28 @@ const SettingsPage = () => {
     friendly: { emoji: "😊", desc: "Warm and encouraging" },
     professional: { emoji: "👔", desc: "Straight to the point" },
     motivating: { emoji: "🔥", desc: "High energy and pumped" },
+  };
+
+  const saveSettings = async () => {
+    if (!user) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        tutor_name: tutorName,
+        difficulty_level: difficulty,
+        ai_personality: personality,
+        voice_enabled: voiceEnabled,
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      toast.error("Failed to save settings");
+    } else {
+      toast.success("Settings saved!");
+      await refreshProfile();
+    }
+    setSaving(false);
   };
 
   return (
@@ -119,10 +150,7 @@ const SettingsPage = () => {
 
       {/* Voice Toggle */}
       <motion.div variants={item} className="bg-card rounded-2xl p-5 shadow-card">
-        <button
-          onClick={() => setVoiceEnabled(!voiceEnabled)}
-          className="flex items-center justify-between w-full"
-        >
+        <button onClick={() => setVoiceEnabled(!voiceEnabled)} className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             {voiceEnabled ? (
               <div className="h-10 w-10 rounded-xl gradient-primary flex items-center justify-center">
@@ -149,8 +177,13 @@ const SettingsPage = () => {
       </motion.div>
 
       <motion.div variants={item}>
-        <Button variant="gradient" className="w-full rounded-xl h-12 font-semibold shadow-glow">
-          Save Settings
+        <Button
+          variant="gradient"
+          className="w-full rounded-xl h-12 font-semibold shadow-glow"
+          onClick={saveSettings}
+          disabled={saving}
+        >
+          {saving ? "Saving..." : "Save Settings"}
         </Button>
       </motion.div>
     </motion.div>

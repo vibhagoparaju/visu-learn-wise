@@ -1,8 +1,9 @@
 import { motion } from "framer-motion";
-import { BookOpen, Upload, MessageSquare, Flame, Target, Clock, Zap, Moon, CheckCircle2, Circle } from "lucide-react";
+import { BookOpen, Upload, MessageSquare, Flame, Target, Clock, Zap, Moon, CheckCircle2, Circle, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 const quickActions = [
   { icon: MessageSquare, label: "Ask AI", to: "/study", gradient: "gradient-primary", shadow: "shadow-glow" },
@@ -10,13 +11,7 @@ const quickActions = [
   { icon: BookOpen, label: "Continue Study", to: "/study", gradient: "gradient-warm", shadow: "" },
 ];
 
-const stats = [
-  { icon: Flame, label: "Day Streak", value: "3", emoji: "🔥" },
-  { icon: Target, label: "Topics Done", value: "12", emoji: "🎯" },
-  { icon: Clock, label: "Study Time", value: "4.5h", emoji: "⏱️" },
-];
-
-const tasks = [
+const defaultTasks = [
   { text: "Review Chapter 3 – Cell Biology", done: true },
   { text: "Practice MCQs on Genetics", done: false },
   { text: "Revise key formulas", done: false },
@@ -33,16 +28,17 @@ const item = {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [taskList, setTaskList] = useState(tasks);
+  const { profile, signOut } = useAuth();
+  const [taskList, setTaskList] = useState(defaultTasks);
   const hour = new Date().getHours();
-  const greeting =
-    hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const completedCount = taskList.filter((t) => t.done).length;
+  const displayName = profile?.display_name || "Student";
+  const streakDays = profile?.streak_days || 0;
+  const xp = profile?.xp || 0;
 
   const toggleTask = (index: number) => {
-    setTaskList((prev) =>
-      prev.map((t, i) => (i === index ? { ...t, done: !t.done } : t))
-    );
+    setTaskList((prev) => prev.map((t, i) => (i === index ? { ...t, done: !t.done } : t)));
   };
 
   return (
@@ -52,29 +48,43 @@ const Dashboard = () => {
         <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
         <div className="absolute bottom-0 right-4 text-6xl opacity-20 select-none">📚</div>
         <div className="relative z-10">
-          <p className="text-sm font-medium opacity-80">
-            {greeting} 👋
-          </p>
+          <p className="text-sm font-medium opacity-80">{greeting} 👋</p>
           <h1 className="text-2xl md:text-3xl font-bold font-display mt-1">
-            Ready to study?
+            Hey, {displayName}!
           </h1>
           <p className="text-sm opacity-75 mt-2 max-w-md">
-            You're on a 3-day streak! Let's keep the momentum going.
+            {streakDays > 0
+              ? `You're on a ${streakDays}-day streak! Let's keep it going.`
+              : "Ready to start your learning journey? Let's go!"}
           </p>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="mt-4 rounded-full px-5 font-semibold"
-            onClick={() => navigate("/study")}
-          >
-            <Zap className="h-4 w-4 mr-1" /> Start Studying
-          </Button>
+          <div className="flex gap-2 mt-4">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="rounded-full px-5 font-semibold"
+              onClick={() => navigate("/study")}
+            >
+              <Zap className="h-4 w-4 mr-1" /> Start Studying
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full px-3 text-primary-foreground/70 hover:text-primary-foreground hover:bg-white/10"
+              onClick={signOut}
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </motion.div>
 
       {/* Stats Row */}
       <motion.div variants={item} className="grid grid-cols-3 gap-3">
-        {stats.map((s) => (
+        {[
+          { emoji: "🔥", value: String(streakDays), label: "Day Streak" },
+          { emoji: "⚡", value: String(xp), label: "XP Points" },
+          { emoji: "📊", value: `Lv.${profile?.level || 1}`, label: "Level" },
+        ].map((s) => (
           <motion.div
             key={s.label}
             whileHover={{ scale: 1.03 }}
@@ -98,24 +108,13 @@ const Dashboard = () => {
         </div>
         <div className="space-y-3">
           {taskList.map((task, i) => (
-            <motion.button
-              key={i}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => toggleTask(i)}
-              className="flex items-center gap-3 w-full text-left group"
-            >
+            <motion.button key={i} whileTap={{ scale: 0.98 }} onClick={() => toggleTask(i)} className="flex items-center gap-3 w-full text-left group">
               {task.done ? (
                 <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
               ) : (
                 <Circle className="h-5 w-5 text-muted-foreground/40 group-hover:text-primary/60 flex-shrink-0 transition-colors" />
               )}
-              <span
-                className={`text-sm transition-colors ${
-                  task.done
-                    ? "text-muted-foreground line-through"
-                    : "text-foreground"
-                }`}
-              >
+              <span className={`text-sm transition-colors ${task.done ? "text-muted-foreground line-through" : "text-foreground"}`}>
                 {task.text}
               </span>
             </motion.button>
@@ -154,38 +153,26 @@ const Dashboard = () => {
         </div>
       </motion.div>
 
-      {/* AI Suggestion Card */}
+      {/* AI Suggestion */}
       <motion.div variants={item}>
-        <motion.div
-          whileHover={{ scale: 1.01 }}
-          className="relative overflow-hidden bg-card rounded-2xl p-5 shadow-card border border-primary/10"
-        >
+        <motion.div whileHover={{ scale: 1.01 }} className="relative overflow-hidden bg-card rounded-2xl p-5 shadow-card border border-primary/10">
           <div className="absolute top-0 right-0 w-24 h-24 gradient-primary rounded-full blur-3xl opacity-20" />
           <div className="relative z-10">
             <div className="flex items-center gap-2 mb-2">
               <div className="h-6 w-6 rounded-full gradient-primary flex items-center justify-center">
                 <Zap className="h-3 w-3 text-primary-foreground" />
               </div>
-              <p className="text-xs font-semibold text-primary uppercase tracking-wider">VISU suggests</p>
+              <p className="text-xs font-semibold text-primary uppercase tracking-wider">{profile?.tutor_name || "VISU"} suggests</p>
             </div>
             <p className="text-sm font-medium text-foreground">
-              You haven't reviewed Genetics in 3 days. Want a quick 5-minute refresher?
+              Ready for a quick study session? Ask me anything or upload your notes to get started!
             </p>
             <div className="flex gap-2 mt-3">
-              <Button
-                variant="gradient"
-                size="sm"
-                className="rounded-full px-4 text-xs"
-                onClick={() => navigate("/study")}
-              >
-                Start Review
+              <Button variant="gradient" size="sm" className="rounded-full px-4 text-xs" onClick={() => navigate("/study")}>
+                Start Chat
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="rounded-full px-4 text-xs text-muted-foreground"
-              >
-                <Moon className="h-3 w-3 mr-1" /> Lazy Mode
+              <Button variant="ghost" size="sm" className="rounded-full px-4 text-xs text-muted-foreground" onClick={() => navigate("/upload")}>
+                <Moon className="h-3 w-3 mr-1" /> Upload Notes
               </Button>
             </div>
           </div>
