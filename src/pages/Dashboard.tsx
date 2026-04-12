@@ -1,120 +1,195 @@
 import { motion } from "framer-motion";
-import { BookOpen, Upload, MessageSquare, Flame, Target, Clock } from "lucide-react";
+import { BookOpen, Upload, MessageSquare, Flame, Target, Clock, Zap, Moon, CheckCircle2, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 
 const quickActions = [
-  { icon: MessageSquare, label: "Ask AI", to: "/study", color: "bg-primary/10 text-primary" },
-  { icon: Upload, label: "Upload Notes", to: "/upload", color: "bg-secondary/10 text-secondary" },
-  { icon: BookOpen, label: "Continue Study", to: "/study", color: "bg-accent text-accent-foreground" },
+  { icon: MessageSquare, label: "Ask AI", to: "/study", gradient: "gradient-primary", shadow: "shadow-glow" },
+  { icon: Upload, label: "Upload Notes", to: "/upload", gradient: "gradient-success", shadow: "shadow-glow-cyan" },
+  { icon: BookOpen, label: "Continue Study", to: "/study", gradient: "gradient-warm", shadow: "" },
 ];
 
 const stats = [
-  { icon: Flame, label: "Day Streak", value: "3", color: "text-orange-500" },
-  { icon: Target, label: "Topics Done", value: "12", color: "text-primary" },
-  { icon: Clock, label: "Study Time", value: "4.5h", color: "text-secondary" },
+  { icon: Flame, label: "Day Streak", value: "3", emoji: "🔥" },
+  { icon: Target, label: "Topics Done", value: "12", emoji: "🎯" },
+  { icon: Clock, label: "Study Time", value: "4.5h", emoji: "⏱️" },
+];
+
+const tasks = [
+  { text: "Review Chapter 3 – Cell Biology", done: true },
+  { text: "Practice MCQs on Genetics", done: false },
+  { text: "Revise key formulas", done: false },
 ];
 
 const container = {
   hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.08 } },
+  show: { opacity: 1, transition: { staggerChildren: 0.07 } },
 };
 const item = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { type: "spring", bounce: 0.3 } },
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { type: "spring", bounce: 0.25, duration: 0.6 } },
 };
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const [taskList, setTaskList] = useState(tasks);
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const completedCount = taskList.filter((t) => t.done).length;
+
+  const toggleTask = (index: number) => {
+    setTaskList((prev) =>
+      prev.map((t, i) => (i === index ? { ...t, done: !t.done } : t))
+    );
+  };
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-8">
-      {/* Greeting */}
-      <motion.div variants={item}>
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-          {greeting}, Student! 👋
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Ready to learn something new today? Let's make it count.
-        </p>
+    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 pb-24 md:pb-8">
+      {/* Hero Greeting */}
+      <motion.div variants={item} className="relative overflow-hidden rounded-2xl gradient-primary p-6 md:p-8 text-primary-foreground">
+        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
+        <div className="absolute bottom-0 right-4 text-6xl opacity-20 select-none">📚</div>
+        <div className="relative z-10">
+          <p className="text-sm font-medium opacity-80">
+            {greeting} 👋
+          </p>
+          <h1 className="text-2xl md:text-3xl font-bold font-display mt-1">
+            Ready to study?
+          </h1>
+          <p className="text-sm opacity-75 mt-2 max-w-md">
+            You're on a 3-day streak! Let's keep the momentum going.
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mt-4 rounded-full px-5 font-semibold"
+            onClick={() => navigate("/study")}
+          >
+            <Zap className="h-4 w-4 mr-1" /> Start Studying
+          </Button>
+        </div>
       </motion.div>
 
-      {/* Stats */}
+      {/* Stats Row */}
       <motion.div variants={item} className="grid grid-cols-3 gap-3">
         {stats.map((s) => (
-          <div key={s.label} className="bg-card rounded-xl p-4 shadow-card text-center">
-            <s.icon className={`h-5 w-5 mx-auto ${s.color}`} />
-            <p className="text-xl font-bold text-foreground mt-2">{s.value}</p>
-            <p className="text-xs text-muted-foreground">{s.label}</p>
-          </div>
+          <motion.div
+            key={s.label}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            className="bg-card rounded-2xl p-4 shadow-card hover:shadow-elevated transition-shadow text-center cursor-default"
+          >
+            <span className="text-2xl">{s.emoji}</span>
+            <p className="text-xl font-bold text-foreground mt-1">{s.value}</p>
+            <p className="text-[11px] text-muted-foreground font-medium">{s.label}</p>
+          </motion.div>
         ))}
       </motion.div>
 
       {/* Today's Plan */}
-      <motion.div variants={item} className="bg-card rounded-xl p-5 shadow-card">
-        <h2 className="text-lg font-semibold text-foreground mb-3">Today's Plan</h2>
+      <motion.div variants={item} className="bg-card rounded-2xl p-5 shadow-card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-foreground">Today's Plan</h2>
+          <span className="text-xs font-medium text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+            {completedCount}/{taskList.length}
+          </span>
+        </div>
         <div className="space-y-3">
-          {["Review Chapter 3 – Cell Biology", "Practice MCQs on Genetics", "Revise key formulas"].map(
-            (task, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="h-2 w-2 rounded-full gradient-primary flex-shrink-0" />
-                <span className="text-sm text-foreground">{task}</span>
-              </div>
-            )
-          )}
+          {taskList.map((task, i) => (
+            <motion.button
+              key={i}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => toggleTask(i)}
+              className="flex items-center gap-3 w-full text-left group"
+            >
+              {task.done ? (
+                <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
+              ) : (
+                <Circle className="h-5 w-5 text-muted-foreground/40 group-hover:text-primary/60 flex-shrink-0 transition-colors" />
+              )}
+              <span
+                className={`text-sm transition-colors ${
+                  task.done
+                    ? "text-muted-foreground line-through"
+                    : "text-foreground"
+                }`}
+              >
+                {task.text}
+              </span>
+            </motion.button>
+          ))}
         </div>
         <div className="mt-4">
           <div className="h-2 bg-muted rounded-full overflow-hidden">
             <motion.div
               className="h-full gradient-primary rounded-full"
               initial={{ width: 0 }}
-              animate={{ width: "33%" }}
-              transition={{ duration: 1, delay: 0.5 }}
+              animate={{ width: `${(completedCount / taskList.length) * 100}%` }}
+              transition={{ duration: 0.8, delay: 0.3 }}
             />
           </div>
-          <p className="text-xs text-muted-foreground mt-1">1 of 3 tasks completed</p>
         </div>
       </motion.div>
 
       {/* Quick Actions */}
       <motion.div variants={item}>
-        <h2 className="text-lg font-semibold text-foreground mb-3">Quick Actions</h2>
+        <h2 className="text-base font-semibold text-foreground mb-3">Quick Actions</h2>
         <div className="grid grid-cols-3 gap-3">
           {quickActions.map((a) => (
-            <button
+            <motion.button
               key={a.label}
+              whileHover={{ scale: 1.04, y: -2 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => navigate(a.to)}
-              className="bg-card rounded-xl p-4 shadow-card hover:shadow-elevated transition-shadow flex flex-col items-center gap-2"
+              className="bg-card rounded-2xl p-4 shadow-card hover:shadow-elevated transition-all flex flex-col items-center gap-3"
             >
-              <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${a.color}`}>
-                <a.icon className="h-5 w-5" />
+              <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${a.gradient} ${a.shadow}`}>
+                <a.icon className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="text-xs font-medium text-foreground">{a.label}</span>
-            </button>
+              <span className="text-xs font-semibold text-foreground">{a.label}</span>
+            </motion.button>
           ))}
         </div>
       </motion.div>
 
-      {/* AI Suggestion */}
-      <motion.div
-        variants={item}
-        className="gradient-primary rounded-xl p-5 text-primary-foreground"
-      >
-        <p className="text-sm font-medium opacity-90">💡 VISU suggests</p>
-        <p className="text-base font-semibold mt-1">
-          You haven't reviewed Genetics in 3 days. Want a quick 5-minute refresher?
-        </p>
-        <Button
-          variant="secondary"
-          size="sm"
-          className="mt-3"
-          onClick={() => navigate("/study")}
+      {/* AI Suggestion Card */}
+      <motion.div variants={item}>
+        <motion.div
+          whileHover={{ scale: 1.01 }}
+          className="relative overflow-hidden bg-card rounded-2xl p-5 shadow-card border border-primary/10"
         >
-          Start Quick Review
-        </Button>
+          <div className="absolute top-0 right-0 w-24 h-24 gradient-primary rounded-full blur-3xl opacity-20" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-6 w-6 rounded-full gradient-primary flex items-center justify-center">
+                <Zap className="h-3 w-3 text-primary-foreground" />
+              </div>
+              <p className="text-xs font-semibold text-primary uppercase tracking-wider">VISU suggests</p>
+            </div>
+            <p className="text-sm font-medium text-foreground">
+              You haven't reviewed Genetics in 3 days. Want a quick 5-minute refresher?
+            </p>
+            <div className="flex gap-2 mt-3">
+              <Button
+                variant="gradient"
+                size="sm"
+                className="rounded-full px-4 text-xs"
+                onClick={() => navigate("/study")}
+              >
+                Start Review
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full px-4 text-xs text-muted-foreground"
+              >
+                <Moon className="h-3 w-3 mr-1" /> Lazy Mode
+              </Button>
+            </div>
+          </div>
+        </motion.div>
       </motion.div>
     </motion.div>
   );
