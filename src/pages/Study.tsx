@@ -1,51 +1,17 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, User, Maximize2, Minimize2, Moon, MessageSquareText, Lightbulb } from "lucide-react";
+import { Send, Sparkles, User, Maximize2, Minimize2, MessageSquareText, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { streamChat } from "@/services/ai";
+import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  type?: "text" | "mcq" | "teachback";
-  options?: { label: string; correct?: boolean }[];
 }
-
-const INITIAL_MESSAGE: Message = {
-  id: "welcome",
-  role: "assistant",
-  content:
-    "Hey there! 👋 I'm VISU, your personal AI tutor.\n\nWhat would you like to learn today? I can:\n• Explain any concept step-by-step\n• Quiz you with MCQs\n• Break down tough topics\n\nLet's go! 🚀",
-};
-
-const AI_RESPONSES: Message[] = [
-  {
-    id: "",
-    role: "assistant",
-    content: "Great question! Let's break this down step by step 👇\n\nFirst, let's understand the core concept. Think of it like building blocks — each piece connects to the next.",
-  },
-  {
-    id: "",
-    role: "assistant",
-    content: "Let me check your understanding with a quick question:",
-    type: "mcq",
-    options: [
-      { label: "Mitochondria is the powerhouse of the cell", correct: true },
-      { label: "Nucleus is the powerhouse of the cell" },
-      { label: "Ribosome is the powerhouse of the cell" },
-    ],
-  },
-  {
-    id: "",
-    role: "assistant",
-    content: "Nice try! You're improving 🔥\n\nHere's a real-life example to make it click:\n\n📌 Think of DNA like a recipe book — it contains all the instructions your body needs.",
-  },
-  {
-    id: "",
-    role: "assistant",
-    content: "That's an excellent topic! Let me give you a structured breakdown:\n\n1️⃣ **Definition** — Start with what it is\n2️⃣ **How it works** — The mechanism\n3️⃣ **Why it matters** — Real-world application\n\nReady for more detail on any of these? 🧠",
-  },
-];
 
 const TypingIndicator = () => (
   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3 items-start">
@@ -67,48 +33,23 @@ const TypingIndicator = () => (
   </motion.div>
 );
 
-const MCQOptions = ({ options, onAnswer }: { options: { label: string; correct?: boolean }[]; onAnswer: (correct: boolean) => void }) => {
-  const [selected, setSelected] = useState<number | null>(null);
-
-  return (
-    <div className="space-y-2 mt-3">
-      {options.map((opt, i) => (
-        <motion.button
-          key={i}
-          whileTap={{ scale: 0.97 }}
-          onClick={() => {
-            if (selected !== null) return;
-            setSelected(i);
-            onAnswer(!!opt.correct);
-          }}
-          className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all border ${
-            selected === null
-              ? "border-border bg-muted/50 hover:border-primary/30 hover:bg-accent"
-              : selected === i
-              ? opt.correct
-                ? "border-green-400 bg-green-50 text-green-700"
-                : "border-red-400 bg-red-50 text-red-600"
-              : opt.correct && selected !== null
-              ? "border-green-400 bg-green-50 text-green-700"
-              : "border-border bg-muted/30 opacity-50"
-          }`}
-        >
-          <span className="mr-2 text-muted-foreground">{String.fromCharCode(65 + i)}.</span>
-          {opt.label}
-        </motion.button>
-      ))}
-    </div>
-  );
-};
-
 const Study = () => {
-  const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
+  const { profile } = useAuth();
+  const tutorName = profile?.tutor_name || "VISU";
+  const difficulty = profile?.difficulty_level || "beginner";
+
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      content: `Hey there! 👋 I'm ${tutorName}, your personal AI tutor.\n\nWhat would you like to learn today? I can:\n• **Explain any concept** step-by-step\n• **Quiz you** with questions\n• **Summarize** complex topics\n\nLet's go! 🚀`,
+    },
+  ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [mode, setMode] = useState<"chat" | "teachback">("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
-  const responseIndex = useRef(0);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -116,42 +57,64 @@ const Study = () => {
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
-    const userMsg: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: mode === "teachback" ? `[Teach Back] ${input.trim()}` : input.trim(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
+
+    const userContent = mode === "teachback" ? `[Teach Back] ${input.trim()}` : input.trim();
+    const userMsg: Message = { id: Date.now().toString(), role: "user", content: userContent };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
     setInput("");
     setIsLoading(true);
 
-    setTimeout(() => {
-      const template = AI_RESPONSES[responseIndex.current % AI_RESPONSES.length];
-      const reply: Message = {
-        ...template,
-        id: (Date.now() + 1).toString(),
-      };
-      responseIndex.current++;
-      setMessages((prev) => [...prev, reply]);
-      setIsLoading(false);
-    }, 1000 + Math.random() * 800);
-  };
+    let assistantContent = "";
 
-  const handleMCQAnswer = (correct: boolean) => {
-    setTimeout(() => {
-      const feedback: Message = {
-        id: Date.now().toString(),
-        role: "assistant",
-        content: correct
-          ? "✅ Correct! Great job — you've got a solid understanding of this concept. Let's move to the next topic!"
-          : "❌ Not quite! Don't worry — mistakes help us learn. Here's the key thing to remember...",
-      };
-      setMessages((prev) => [...prev, feedback]);
-    }, 600);
+    const upsertAssistant = (chunk: string) => {
+      assistantContent += chunk;
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant" && last.id === "streaming") {
+          return prev.map((m, i) =>
+            i === prev.length - 1 ? { ...m, content: assistantContent } : m
+          );
+        }
+        return [...prev, { id: "streaming", role: "assistant", content: assistantContent }];
+      });
+    };
+
+    try {
+      await streamChat({
+        messages: newMessages
+          .filter((m) => m.id !== "welcome")
+          .map((m) => ({ role: m.role, content: m.content })),
+        mode: mode === "teachback" ? "teachback" : "chat",
+        difficulty,
+        onDelta: upsertAssistant,
+        onDone: () => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === "streaming" ? { ...m, id: Date.now().toString() } : m
+            )
+          );
+          setIsLoading(false);
+        },
+        onError: (error) => {
+          toast.error(error);
+          setIsLoading(false);
+        },
+      });
+    } catch {
+      toast.error("Failed to get AI response");
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className={`flex flex-col ${focusMode ? "fixed inset-0 z-50 bg-background p-4 md:p-8" : "h-[calc(100vh-6rem)] md:h-[calc(100vh-4rem)]"}`}>
+    <div
+      className={`flex flex-col ${
+        focusMode
+          ? "fixed inset-0 z-50 bg-background p-4 md:p-8"
+          : "h-[calc(100vh-6rem)] md:h-[calc(100vh-4rem)]"
+      }`}
+    >
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
@@ -159,9 +122,11 @@ const Study = () => {
         className="flex items-center justify-between mb-4"
       >
         <div>
-          <h1 className="text-xl font-bold text-foreground">Study with VISU</h1>
+          <h1 className="text-xl font-bold text-foreground">Study with {tutorName}</h1>
           <p className="text-xs text-muted-foreground">
-            {mode === "teachback" ? "🎓 Teach Back Mode — explain to learn!" : "Your AI tutor is ready to help"}
+            {mode === "teachback"
+              ? "🎓 Teach Back Mode — explain to learn!"
+              : "Your AI tutor is ready to help"}
           </p>
         </div>
         <div className="flex gap-1.5">
@@ -202,18 +167,19 @@ const Study = () => {
                   <Sparkles className="h-4 w-4 text-primary-foreground" />
                 </div>
               )}
-              <div className={`max-w-[80%] ${msg.role === "user" ? "" : ""}`}>
-                <div
-                  className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                    msg.role === "user"
-                      ? "gradient-primary text-primary-foreground rounded-br-md shadow-glow"
-                      : "bg-card shadow-card text-foreground rounded-bl-md"
-                  }`}
-                >
-                  {msg.content}
-                </div>
-                {msg.type === "mcq" && msg.options && (
-                  <MCQOptions options={msg.options} onAnswer={handleMCQAnswer} />
+              <div
+                className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                  msg.role === "user"
+                    ? "gradient-primary text-primary-foreground rounded-br-md shadow-glow"
+                    : "bg-card shadow-card text-foreground rounded-bl-md"
+                }`}
+              >
+                {msg.role === "assistant" ? (
+                  <div className="prose prose-sm max-w-none prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-code:text-primary prose-code:bg-accent prose-code:px-1 prose-code:rounded">
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <span className="whitespace-pre-wrap">{msg.content}</span>
                 )}
               </div>
               {msg.role === "user" && (
@@ -225,7 +191,7 @@ const Study = () => {
           ))}
         </AnimatePresence>
 
-        {isLoading && <TypingIndicator />}
+        {isLoading && messages[messages.length - 1]?.role !== "assistant" && <TypingIndicator />}
       </div>
 
       {/* Quick Prompts */}
@@ -236,32 +202,34 @@ const Study = () => {
           transition={{ delay: 0.5 }}
           className="flex gap-2 pb-3 overflow-x-auto"
         >
-          {["Explain photosynthesis", "Quiz me on genetics", "Summarize Chapter 3"].map((prompt) => (
-            <button
-              key={prompt}
-              onClick={() => {
-                setInput(prompt);
-              }}
-              className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-full border border-primary/20 text-primary bg-accent hover:bg-primary hover:text-primary-foreground transition-colors"
-            >
-              <Lightbulb className="h-3 w-3" />
-              {prompt}
-            </button>
-          ))}
+          {["Explain photosynthesis", "Quiz me on genetics", "Summarize Chapter 3"].map(
+            (prompt) => (
+              <button
+                key={prompt}
+                onClick={() => setInput(prompt)}
+                className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-full border border-primary/20 text-primary bg-accent hover:bg-primary hover:text-primary-foreground transition-colors"
+              >
+                <Lightbulb className="h-3 w-3" />
+                {prompt}
+              </button>
+            )
+          )}
         </motion.div>
       )}
 
       {/* Input */}
       <div className="flex gap-2 pt-3 border-t border-border">
-        <div className="flex-1 relative">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-            placeholder={mode === "teachback" ? "Explain what you've learned..." : "Ask VISU anything..."}
-            className="w-full bg-card rounded-xl px-4 py-3 pr-12 text-sm text-foreground placeholder:text-muted-foreground shadow-card focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
-          />
-        </div>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
+          placeholder={
+            mode === "teachback"
+              ? "Explain what you've learned..."
+              : `Ask ${tutorName} anything...`
+          }
+          className="flex-1 bg-card rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground shadow-card focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+        />
         <Button
           variant="gradient"
           size="icon"
