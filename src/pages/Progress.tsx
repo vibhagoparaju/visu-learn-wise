@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { TrendingUp, Brain, Target, Clock, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
