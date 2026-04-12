@@ -14,7 +14,212 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      chat_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string | null
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          created_at: string | null
+          id: string
+          title: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          title?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          title?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      documents: {
+        Row: {
+          created_at: string | null
+          file_name: string
+          file_path: string | null
+          formulas: Json | null
+          id: string
+          key_points: Json | null
+          status: string | null
+          summary: string | null
+          topics: Json | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          file_name: string
+          file_path?: string | null
+          formulas?: Json | null
+          id?: string
+          key_points?: Json | null
+          status?: string | null
+          summary?: string | null
+          topics?: Json | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          file_name?: string
+          file_path?: string | null
+          formulas?: Json | null
+          id?: string
+          key_points?: Json | null
+          status?: string | null
+          summary?: string | null
+          topics?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          ai_personality: string | null
+          created_at: string | null
+          difficulty_level: string | null
+          display_name: string | null
+          id: string
+          last_study_date: string | null
+          level: number | null
+          streak_days: number | null
+          tutor_name: string | null
+          updated_at: string | null
+          voice_enabled: boolean | null
+          xp: number | null
+        }
+        Insert: {
+          ai_personality?: string | null
+          created_at?: string | null
+          difficulty_level?: string | null
+          display_name?: string | null
+          id: string
+          last_study_date?: string | null
+          level?: number | null
+          streak_days?: number | null
+          tutor_name?: string | null
+          updated_at?: string | null
+          voice_enabled?: boolean | null
+          xp?: number | null
+        }
+        Update: {
+          ai_personality?: string | null
+          created_at?: string | null
+          difficulty_level?: string | null
+          display_name?: string | null
+          id?: string
+          last_study_date?: string | null
+          level?: number | null
+          streak_days?: number | null
+          tutor_name?: string | null
+          updated_at?: string | null
+          voice_enabled?: boolean | null
+          xp?: number | null
+        }
+        Relationships: []
+      }
+      study_plans: {
+        Row: {
+          completed: boolean | null
+          created_at: string | null
+          id: string
+          plan_date: string
+          tasks: Json | null
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean | null
+          created_at?: string | null
+          id?: string
+          plan_date: string
+          tasks?: Json | null
+          user_id: string
+        }
+        Update: {
+          completed?: boolean | null
+          created_at?: string | null
+          id?: string
+          plan_date?: string
+          tasks?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      study_progress: {
+        Row: {
+          created_at: string | null
+          id: string
+          last_studied_at: string | null
+          mastery_pct: number | null
+          questions_attempted: number | null
+          questions_correct: number | null
+          strength: string | null
+          subtopic: string | null
+          topic: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          last_studied_at?: string | null
+          mastery_pct?: number | null
+          questions_attempted?: number | null
+          questions_correct?: number | null
+          strength?: string | null
+          subtopic?: string | null
+          topic: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          last_studied_at?: string | null
+          mastery_pct?: number | null
+          questions_attempted?: number | null
+          questions_correct?: number | null
+          strength?: string | null
+          subtopic?: string | null
+          topic?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
