@@ -23,12 +23,15 @@ const AppSidebar = () => {
   const location = useLocation();
 
   return (
-    <aside className="hidden md:flex flex-col w-64 border-r border-border bg-card min-h-screen p-4">
-      <div className="flex items-center gap-2 px-3 mb-8">
-        <div className="h-9 w-9 rounded-lg gradient-primary flex items-center justify-center">
+    <aside className="hidden md:flex flex-col w-64 border-r border-border bg-card/50 backdrop-blur-sm min-h-screen p-4">
+      <div className="flex items-center gap-2.5 px-3 mb-8">
+        <div className="h-10 w-10 rounded-xl gradient-primary flex items-center justify-center shadow-glow">
           <Sparkles className="h-5 w-5 text-primary-foreground" />
         </div>
-        <span className="text-xl font-bold text-gradient">VISU</span>
+        <div>
+          <span className="text-xl font-bold text-gradient font-display">VISU</span>
+          <p className="text-[10px] text-muted-foreground -mt-0.5">Personal AI Tutor</p>
+        </div>
       </div>
 
       <nav className="flex flex-col gap-1 flex-1">
@@ -38,23 +41,23 @@ const AppSidebar = () => {
             <NavLink
               key={item.to}
               to={item.to}
-              className="relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+              className="relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
             >
               {isActive && (
                 <motion.div
                   layoutId="sidebar-active"
-                  className="absolute inset-0 bg-accent rounded-lg"
+                  className="absolute inset-0 bg-accent rounded-xl border border-primary/10"
                   transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
                 />
               )}
               <item.icon
-                className={`h-5 w-5 relative z-10 ${
-                  isActive ? "text-accent-foreground" : "text-muted-foreground"
+                className={`h-5 w-5 relative z-10 transition-colors ${
+                  isActive ? "text-primary" : "text-muted-foreground"
                 }`}
               />
               <span
-                className={`relative z-10 ${
-                  isActive ? "text-accent-foreground" : "text-muted-foreground"
+                className={`relative z-10 transition-colors ${
+                  isActive ? "text-foreground font-semibold" : "text-muted-foreground"
                 }`}
               >
                 {item.label}
@@ -64,9 +67,11 @@ const AppSidebar = () => {
         })}
       </nav>
 
-      <div className="mt-auto p-3 rounded-xl gradient-accent">
-        <p className="text-xs font-semibold text-accent-foreground">Phase 1 – MVP</p>
-        <p className="text-xs text-muted-foreground mt-1">AI Tutor • Upload • Dashboard</p>
+      <div className="p-4 rounded-2xl gradient-primary text-primary-foreground">
+        <p className="text-xs font-semibold opacity-90">🚀 Pro Tip</p>
+        <p className="text-[11px] opacity-75 mt-1 leading-relaxed">
+          Upload your notes to get AI-powered summaries and quizzes!
+        </p>
       </div>
     </aside>
   );
