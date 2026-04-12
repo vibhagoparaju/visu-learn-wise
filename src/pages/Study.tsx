@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { streamChat } from "@/services/ai";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
+import WellnessReminder from "@/components/study/WellnessReminder";
 
 interface Message {
   id: string;
@@ -42,14 +43,21 @@ const Study = () => {
     {
       id: "welcome",
       role: "assistant",
-      content: `Hey there! 👋 I'm ${tutorName}, your personal AI tutor.\n\nWhat would you like to learn today? I can:\n• **Explain any concept** step-by-step\n• **Quiz you** with questions\n• **Summarize** complex topics\n\nLet's go! 🚀`,
+      content: `Hey there! 👋 I'm ${tutorName}, your personal AI tutor.\n\nWhat would you like to learn today? I can:\n• **Explain any concept** step-by-step\n• **Quiz you** with questions\n• **Summarize** complex topics\n\nAsk me anything or upload your notes to get started! 🚀`,
     },
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [mode, setMode] = useState<"chat" | "teachback">("chat");
+  const [sessionMinutes, setSessionMinutes] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Track session time for wellness reminders
+  useEffect(() => {
+    const interval = setInterval(() => setSessionMinutes((m) => m + 1), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -115,6 +123,8 @@ const Study = () => {
           : "h-[calc(100vh-6rem)] md:h-[calc(100vh-4rem)]"
       }`}
     >
+      <WellnessReminder sessionMinutes={sessionMinutes} />
+
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
@@ -126,7 +136,7 @@ const Study = () => {
           <p className="text-xs text-muted-foreground">
             {mode === "teachback"
               ? "🎓 Teach Back Mode — explain to learn!"
-              : "Your AI tutor is ready to help"}
+              : `Your AI tutor is ready • ${difficulty} level`}
           </p>
         </div>
         <div className="flex gap-1.5">
@@ -202,18 +212,16 @@ const Study = () => {
           transition={{ delay: 0.5 }}
           className="flex gap-2 pb-3 overflow-x-auto"
         >
-          {["Explain photosynthesis", "Quiz me on genetics", "Summarize Chapter 3"].map(
-            (prompt) => (
-              <button
-                key={prompt}
-                onClick={() => setInput(prompt)}
-                className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-full border border-primary/20 text-primary bg-accent hover:bg-primary hover:text-primary-foreground transition-colors"
-              >
-                <Lightbulb className="h-3 w-3" />
-                {prompt}
-              </button>
-            )
-          )}
+          {["Explain a concept", "Quiz me on a topic", "Help me study"].map((prompt) => (
+            <button
+              key={prompt}
+              onClick={() => setInput(prompt)}
+              className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-full border border-primary/20 text-primary bg-accent hover:bg-primary hover:text-primary-foreground transition-colors"
+            >
+              <Lightbulb className="h-3 w-3" />
+              {prompt}
+            </button>
+          ))}
         </motion.div>
       )}
 

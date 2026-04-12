@@ -1,92 +1,125 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { TrendingUp, Brain, Target, Clock, ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { TrendingUp, Brain, Target, Clock, ChevronRight, BarChart3 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import EmptyState from "@/components/study/EmptyState";
 
-interface Topic {
-  name: string;
-  progress: number;
-  strength: "strong" | "moderate" | "weak";
-  subtopics?: { name: string; status: "done" | "weak" | "not-started" }[];
+interface ProgressTopic {
+  id: string;
+  topic: string;
+  subtopic: string | null;
+  mastery_pct: number;
+  strength: string;
+  questions_attempted: number;
+  questions_correct: number;
 }
 
-const topics: Topic[] = [
-  {
-    name: "Cell Biology",
-    progress: 85,
-    strength: "strong",
-    subtopics: [
-      { name: "Cell Structure", status: "done" },
-      { name: "Cell Membrane", status: "done" },
-      { name: "Organelles", status: "weak" },
-    ],
-  },
-  {
-    name: "Genetics",
-    progress: 45,
-    strength: "weak",
-    subtopics: [
-      { name: "Mendel's Laws", status: "done" },
-      { name: "DNA Replication", status: "weak" },
-      { name: "Gene Expression", status: "not-started" },
-    ],
-  },
-  {
-    name: "Ecology",
-    progress: 70,
-    strength: "moderate",
-    subtopics: [
-      { name: "Ecosystems", status: "done" },
-      { name: "Food Chains", status: "done" },
-      { name: "Biodiversity", status: "weak" },
-    ],
-  },
-  {
-    name: "Human Physiology",
-    progress: 30,
-    strength: "weak",
-    subtopics: [
-      { name: "Circulatory System", status: "weak" },
-      { name: "Nervous System", status: "not-started" },
-      { name: "Respiratory System", status: "not-started" },
-    ],
-  },
-  {
-    name: "Evolution",
-    progress: 90,
-    strength: "strong",
-    subtopics: [
-      { name: "Natural Selection", status: "done" },
-      { name: "Speciation", status: "done" },
-      { name: "Evidence of Evolution", status: "done" },
-    ],
-  },
-];
+interface GroupedTopic {
+  name: string;
+  progress: number;
+  strength: "strong" | "moderate" | "weak" | "not-started";
+  subtopics: { name: string; status: "done" | "weak" | "not-started"; mastery: number }[];
+}
 
 const strengthConfig = {
   strong: { color: "text-green-600", bg: "bg-green-50", border: "border-green-200", dot: "bg-green-500" },
   moderate: { color: "text-yellow-600", bg: "bg-yellow-50", border: "border-yellow-200", dot: "bg-yellow-500" },
   weak: { color: "text-red-500", bg: "bg-red-50", border: "border-red-200", dot: "bg-red-500" },
+  "not-started": { color: "text-muted-foreground", bg: "bg-muted", border: "border-border", dot: "bg-muted-foreground" },
 };
 
 const subtopicStatusConfig = {
-  done: { color: "text-green-600", bg: "bg-green-100", label: "✅" },
-  weak: { color: "text-yellow-600", bg: "bg-yellow-100", label: "⚠️" },
-  "not-started": { color: "text-muted-foreground", bg: "bg-muted", label: "⬜" },
+  done: { label: "✅" },
+  weak: { label: "⚠️" },
+  "not-started": { label: "⬜" },
 };
 
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
-};
-const item = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0 },
-};
-
-const overallProgress = Math.round(topics.reduce((acc, t) => acc + t.progress, 0) / topics.length);
+const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
+const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
 
 const Progress = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [topics, setTopics] = useState<GroupedTopic[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetch = async () => {
+      const { data } = await supabase
+        .from("study_progress")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("topic");
+
+      if (data && data.length > 0) {
+        // Group by topic
+        const map = new Map<string, ProgressTopic[]>();
+        (data as ProgressTopic[]).forEach((r) => {
+          const existing = map.get(r.topic) || [];
+          existing.push(r);
+          map.set(r.topic, existing);
+        });
+
+        const grouped: GroupedTopic[] = Array.from(map.entries()).map(([name, rows]) => {
+          const avgMastery = Math.round(rows.reduce((a, r) => a + (r.mastery_pct || 0), 0) / rows.length);
+          const strength: GroupedTopic["strength"] =
+            avgMastery >= 75 ? "strong" : avgMastery >= 40 ? "moderate" : avgMastery > 0 ? "weak" : "not-started";
+
+          const subtopics = rows
+            .filter((r) => r.subtopic)
+            .map((r) => ({
+              name: r.subtopic!,
+              status: (r.mastery_pct >= 75 ? "done" : r.mastery_pct >= 30 ? "weak" : "not-started") as "done" | "weak" | "not-started",
+              mastery: r.mastery_pct,
+            }));
+
+          return { name, progress: avgMastery, strength, subtopics };
+        });
+        setTopics(grouped);
+      } else {
+        setTopics([]);
+      }
+      setLoading(false);
+    };
+    fetch();
+  }, [user]);
+
+  const overallProgress = topics.length > 0
+    ? Math.round(topics.reduce((acc, t) => acc + t.progress, 0) / topics.length)
+    : 0;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (topics.length === 0) {
+    return (
+      <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 pb-24 md:pb-8">
+        <motion.div variants={item}>
+          <h1 className="text-2xl font-bold text-foreground">Your Progress</h1>
+          <p className="text-sm text-muted-foreground mt-1">Track your learning journey</p>
+        </motion.div>
+        <EmptyState
+          icon={BarChart3}
+          emoji="📊"
+          title="No progress yet"
+          description="Start learning to track your growth. Upload content or chat with your AI tutor to begin."
+          actions={[
+            { label: "Upload Material", onClick: () => navigate("/upload") },
+            { label: "Ask AI", onClick: () => navigate("/study"), variant: "outline" },
+          ]}
+        />
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 pb-24 md:pb-8">
@@ -100,8 +133,8 @@ const Progress = () => {
         {[
           { icon: Brain, label: "Mastery", value: `${overallProgress}%`, gradient: "gradient-primary" },
           { icon: Target, label: "Topics", value: `${topics.length}`, gradient: "gradient-success" },
-          { icon: TrendingUp, label: "This Week", value: "+12%", gradient: "gradient-warm" },
-          { icon: Clock, label: "Avg Session", value: "25m", gradient: "gradient-primary" },
+          { icon: TrendingUp, label: "Strong", value: `${topics.filter((t) => t.strength === "strong").length}`, gradient: "gradient-warm" },
+          { icon: Clock, label: "Weak", value: `${topics.filter((t) => t.strength === "weak").length}`, gradient: "gradient-primary" },
         ].map((stat) => (
           <div key={stat.label} className="bg-card rounded-2xl p-4 shadow-card">
             <div className={`h-8 w-8 rounded-lg ${stat.gradient} flex items-center justify-center mb-2`}>
@@ -129,7 +162,7 @@ const Progress = () => {
         </div>
       </motion.div>
 
-      {/* Topic Breakdown - Tree View */}
+      {/* Study Map */}
       <motion.div variants={item} className="space-y-3">
         <h2 className="text-base font-semibold text-foreground">Study Map</h2>
         {topics.map((t) => {
@@ -163,7 +196,7 @@ const Progress = () => {
               </button>
 
               <AnimatePresence>
-                {isExpanded && t.subtopics && (
+                {isExpanded && t.subtopics.length > 0 && (
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
@@ -176,7 +209,8 @@ const Progress = () => {
                         return (
                           <div key={sub.name} className="flex items-center gap-3 pl-6">
                             <span className="text-sm">{subConfig.label}</span>
-                            <span className="text-sm text-foreground">{sub.name}</span>
+                            <span className="text-sm text-foreground flex-1">{sub.name}</span>
+                            <span className="text-[10px] text-muted-foreground">{sub.mastery}%</span>
                           </div>
                         );
                       })}
