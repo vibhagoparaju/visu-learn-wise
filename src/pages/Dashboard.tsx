@@ -1,11 +1,19 @@
 import { motion } from "framer-motion";
-import { Upload, MessageSquare, LogOut, BookOpen, Rocket, Layers, ArrowRight, FileText, AlertTriangle } from "lucide-react";
+import { Upload, MessageSquare, CheckCircle2, Circle, LogOut, BookOpen, Rocket, RefreshCw, Layers, ArrowRight, FileText, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import EmptyState from "@/components/study/EmptyState";
+import { generateDailyPlan, saveDailyPlan } from "@/services/studyPlanner";
+
+interface StudyTask {
+  text: string;
+  done: boolean;
+  topicId?: string;
+  type?: string;
+}
 
 interface RecentDoc {
   id: string;
@@ -31,7 +39,9 @@ const item = {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { profile, user, signOut } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const [taskList, setTaskList] = useState<StudyTask[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(true);
+  const [generatingPlan, setGeneratingPlan] = useState(false);
   const [hasDocuments, setHasDocuments] = useState(false);
   const [totalTopics, setTotalTopics] = useState(0);
   const [dueCardCount, setDueCardCount] = useState(0);
@@ -47,9 +57,11 @@ const Dashboard = () => {
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      setLoading(true);
+      setLoadingTasks(true);
 
-      const [docCountRes, progressRes, dueCardsRes, lastStudiedRes, recentDocsRes] = await Promise.all([
+      const today = new Date().toISOString().split("T")[0];
+      const [planRes, docCountRes, progressRes, dueCardsRes, lastStudiedRes, recentDocsRes] = await Promise.all([
+        supabase.from("study_plans").select("tasks").eq("user_id", user.id).eq("plan_date", today).maybeSingle(),
         supabase.from("documents").select("id", { count: "exact", head: true }).eq("user_id", user.id),
         supabase.from("study_progress").select("topic, mastery_pct").eq("user_id", user.id),
         supabase.from("flashcards").select("id", { count: "exact", head: true }).eq("user_id", user.id).lte("next_review_at", new Date().toISOString()),
@@ -57,12 +69,17 @@ const Dashboard = () => {
         supabase.from("documents").select("id, file_name, topics, created_at").eq("user_id", user.id).eq("status", "done").order("created_at", { ascending: false }).limit(4),
       ]);
 
+      if (planRes.data?.tasks && Array.isArray(planRes.data.tasks)) {
+        setTaskList(planRes.data.tasks as unknown as StudyTask[]);
+      }
+
       setHasDocuments((docCountRes.count || 0) > 0);
       setDueCardCount(dueCardsRes.count || 0);
 
       const progressData = progressRes.data || [];
       setTotalTopics(progressData.length);
 
+      // Weak topics
       const weak = progressData
         .filter((p) => (p.mastery_pct || 0) < 50 && (p.mastery_pct || 0) > 0)
         .sort((a, b) => (a.mastery_pct || 0) - (b.mastery_pct || 0))
@@ -80,12 +97,30 @@ const Dashboard = () => {
         })));
       }
 
-      setLoading(false);
+      setLoadingTasks(false);
     };
     fetchData();
   }, [user]);
 
-  const hasAnyData = hasDocuments || totalTopics > 0;
+  const completedCount = taskList.filter((t) => t.done).length;
+  const hasAnyData = hasDocuments || totalTopics > 0 || taskList.length > 0;
+
+  const toggleTask = async (index: number) => {
+    const updated = taskList.map((t, i) => (i === index ? { ...t, done: !t.done } : t));
+    setTaskList(updated);
+    if (user) await saveDailyPlan(user.id, updated as any);
+  };
+
+  const handleGeneratePlan = async () => {
+    if (!user) return;
+    setGeneratingPlan(true);
+    try {
+      const tasks = await generateDailyPlan(user.id);
+      setTaskList(tasks);
+      await saveDailyPlan(user.id, tasks);
+    } catch { /* silent */ }
+    setGeneratingPlan(false);
+  };
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-8 pb-24 md:pb-8">
@@ -135,7 +170,7 @@ const Dashboard = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground">Quick Revision</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{dueCardCount} card{dueCardCount !== 1 ? "s" : ""} due</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{dueCardCount} card{dueCardCount !== 1 ? "s" : ""} due for review</p>
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
             </div>
@@ -163,7 +198,10 @@ const Dashboard = () => {
                     <span className="text-xs text-muted-foreground ml-2">{t.mastery_pct}%</span>
                   </div>
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full gradient-warm rounded-full transition-all" style={{ width: `${t.mastery_pct}%` }} />
+                    <div
+                      className="h-full gradient-warm rounded-full transition-all"
+                      style={{ width: `${t.mastery_pct}%` }}
+                    />
                   </div>
                 </div>
                 <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/0 group-hover:text-muted-foreground transition-all flex-shrink-0" />
@@ -205,8 +243,57 @@ const Dashboard = () => {
         </motion.div>
       )}
 
+      {/* Today's Plan — only show if tasks exist or user has data */}
+      {hasAnyData && (
+        <motion.div variants={item} className="bg-card rounded-2xl p-5 shadow-card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-foreground">Today's Plan</h2>
+            <div className="flex items-center gap-2">
+              {taskList.length > 0 && (
+                <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  {completedCount}/{taskList.length}
+                </span>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-lg"
+                onClick={handleGeneratePlan}
+                disabled={generatingPlan}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${generatingPlan ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+          </div>
+
+          {taskList.length > 0 ? (
+            <div className="space-y-2.5">
+              {taskList.map((task, i) => (
+                <button key={i} onClick={() => toggleTask(i)} className="flex items-center gap-3 w-full text-left group">
+                  {task.done ? (
+                    <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
+                  ) : (
+                    <Circle className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary/60 flex-shrink-0 transition-colors" />
+                  )}
+                  <span className={`text-sm transition-colors ${task.done ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                    {task.text}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-sm text-muted-foreground mb-3">No plan yet</p>
+              <Button variant="outline" size="sm" className="rounded-full px-5" onClick={handleGeneratePlan} disabled={generatingPlan}>
+                {generatingPlan ? <><RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Generating...</> : "Generate Plan"}
+              </Button>
+            </div>
+          )}
+        </motion.div>
+      )}
+
       {/* Empty state for new users */}
-      {!loading && !hasAnyData && (
+      {!loadingTasks && !hasAnyData && (
         <motion.div variants={item}>
           <EmptyState
             icon={Rocket}
@@ -221,7 +308,7 @@ const Dashboard = () => {
         </motion.div>
       )}
 
-      {/* Quick Actions */}
+      {/* Quick Actions — minimal */}
       {hasAnyData && (
         <motion.div variants={item} className="flex gap-3">
           <button
