@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, User, Maximize2, Minimize2, MessageSquareText, Lightbulb, Mic, MicOff, Volume2, VolumeX, Loader2 } from "lucide-react";
+import { Send, Sparkles, User, Maximize2, Minimize2, MessageSquareText, Lightbulb, Mic, MicOff, Volume2, VolumeX, Loader2, HelpCircle, Coffee } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useVoice } from "@/hooks/useVoice";
@@ -15,6 +15,8 @@ interface Message {
   role: "user" | "assistant";
   content: string;
 }
+
+type StudyMode = "chat" | "teachback" | "quiz" | "lazy";
 
 const TypingIndicator = () => (
   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3 items-start">
@@ -37,6 +39,13 @@ const TypingIndicator = () => (
   </motion.div>
 );
 
+const modeConfig: Record<StudyMode, { label: string; icon: any; desc: string }> = {
+  chat: { label: "Chat", icon: Sparkles, desc: "Ask anything" },
+  teachback: { label: "Teach Back", icon: MessageSquareText, desc: "Explain to learn" },
+  quiz: { label: "Quiz", icon: HelpCircle, desc: "Test yourself" },
+  lazy: { label: "Lazy", icon: Coffee, desc: "Quick lessons" },
+};
+
 const Study = () => {
   const { profile } = useAuth();
   const { topic: urlTopic } = useParams();
@@ -53,12 +62,11 @@ const Study = () => {
   const [input, setInput] = useState(urlTopic ? `Explain ${decodeURIComponent(urlTopic)}` : "");
   const [isLoading, setIsLoading] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
-  const [mode, setMode] = useState<"chat" | "teachback">("chat");
+  const [mode, setMode] = useState<StudyMode>("chat");
   const [sessionMinutes, setSessionMinutes] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { isListening, isSpeaking, startListening, stopListening, speak, stopSpeaking } = useVoice();
 
-  // Auto-send topic question on mount
   const [autoSent, setAutoSent] = useState(false);
   useEffect(() => {
     if (urlTopic && !autoSent && input) {
@@ -79,7 +87,11 @@ const Study = () => {
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
-    const userContent = mode === "teachback" ? `[Teach Back] ${input.trim()}` : input.trim();
+    let userContent = input.trim();
+    if (mode === "teachback") userContent = `[Teach Back] ${userContent}`;
+    else if (mode === "quiz") userContent = `[Quiz Mode] Generate a quiz question about: ${userContent}`;
+    else if (mode === "lazy") userContent = `[Lazy Mode] Give a super quick 2-min lesson on: ${userContent}`;
+
     const userMsg: Message = { id: Date.now().toString(), role: "user", content: userContent };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
@@ -106,7 +118,7 @@ const Study = () => {
         messages: newMessages
           .filter((m) => m.id !== "welcome")
           .map((m) => ({ role: m.role, content: m.content })),
-        mode: mode === "teachback" ? "teachback" : "chat",
+        mode: mode === "teachback" ? "teachback" : mode === "quiz" ? "quiz" : mode === "lazy" ? "lazy" : "chat",
         difficulty,
         onDelta: upsertAssistant,
         onDone: () => {
@@ -117,7 +129,6 @@ const Study = () => {
           );
           setIsLoading(false);
 
-          // Auto-speak if voice enabled
           if (profile?.voice_enabled && assistantContent) {
             speak(assistantContent);
           }
@@ -160,39 +171,48 @@ const Study = () => {
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-4"
+        className="flex items-center justify-between mb-3"
       >
-        <div>
-          <h1 className="text-xl font-bold text-foreground">
+        <div className="min-w-0">
+          <h1 className="text-lg font-bold text-foreground truncate">
             {urlTopic ? `Studying: ${decodeURIComponent(urlTopic)}` : `Study with ${tutorName}`}
           </h1>
           <p className="text-xs text-muted-foreground">
-            {mode === "teachback"
-              ? "🎓 Teach Back Mode — explain to learn!"
-              : `Your AI tutor is ready • ${difficulty} level`}
+            {modeConfig[mode].desc} • {difficulty} level
           </p>
         </div>
-        <div className="flex gap-1.5">
-          <Button
-            variant={mode === "teachback" ? "default" : "ghost"}
-            size="icon"
-            className="h-8 w-8 rounded-lg"
-            onClick={() => setMode(mode === "teachback" ? "chat" : "teachback")}
-            title="Teach Back Mode"
-          >
-            <MessageSquareText className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-lg"
-            onClick={() => setFocusMode(!focusMode)}
-            title="Focus Mode"
-          >
-            {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 rounded-lg flex-shrink-0"
+          onClick={() => setFocusMode(!focusMode)}
+          title="Focus Mode"
+        >
+          {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </Button>
       </motion.div>
+
+      {/* Mode Selector */}
+      <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1">
+        {(Object.keys(modeConfig) as StudyMode[]).map((m) => {
+          const cfg = modeConfig[m];
+          const Icon = cfg.icon;
+          return (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full whitespace-nowrap transition-all ${
+                mode === m
+                  ? "bg-primary text-primary-foreground shadow-glow"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-3 w-3" />
+              {cfg.label}
+            </button>
+          );
+        })}
+      </div>
 
       {/* Chat Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 pb-4 pr-1">
@@ -224,7 +244,6 @@ const Study = () => {
                 ) : (
                   <span className="whitespace-pre-wrap">{msg.content}</span>
                 )}
-                {/* Speaker button for assistant messages */}
                 {msg.role === "assistant" && msg.id !== "welcome" && msg.id !== "streaming" && (
                   <button
                     onClick={() => isSpeaking ? stopSpeaking() : speak(msg.content)}
@@ -270,7 +289,6 @@ const Study = () => {
 
       {/* Input */}
       <div className="flex gap-2 pt-3 border-t border-border">
-        {/* Mic button */}
         <Button
           variant={isListening ? "default" : "ghost"}
           size="icon"
@@ -290,6 +308,10 @@ const Study = () => {
               ? "Listening..."
               : mode === "teachback"
               ? "Explain what you've learned..."
+              : mode === "quiz"
+              ? "Enter a topic to get quizzed on..."
+              : mode === "lazy"
+              ? "Topic for a quick lesson..."
               : `Ask ${tutorName} anything...`
           }
           className="flex-1 bg-card rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground shadow-card focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"

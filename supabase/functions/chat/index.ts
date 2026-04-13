@@ -68,7 +68,7 @@ Then optionally ask a follow-up question to check understanding.`,
 
 ## 📝 Important Definitions / Formulas
 - Definition or formula`,
-      lazy: "Give a super concise 2-3 minute micro-lesson on the topic. Use bullet points, key takeaways only. Keep it light and fun with emojis.",
+      lazy: "Give a super concise 2-3 minute micro-lesson on the topic. Use bullet points, key takeaways only. Keep it light and fun with emojis. Maximum 150 words.",
     };
 
     const systemPrompt = `${modePrompts[mode] || modePrompts.chat}
@@ -83,6 +83,12 @@ CRITICAL FORMATTING RULES:
 - Use ## for section headers
 - Keep paragraphs short (2-3 sentences max)
 - Use emojis sparingly but effectively
+
+MULTILINGUAL SUPPORT:
+- Detect the language the user is writing in
+- ALWAYS respond in the SAME language the user uses
+- If user writes in Hindi, respond in Hindi. If Spanish, respond in Spanish. Etc.
+- Keep section headers and emojis consistent regardless of language
 
 TONE GUIDELINES:
 - Always be encouraging and supportive
