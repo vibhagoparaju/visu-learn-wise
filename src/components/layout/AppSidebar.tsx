@@ -8,12 +8,14 @@ import {
   Trophy,
   Settings,
   Sparkles,
+  Clock,
 } from "lucide-react";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/study", icon: BookOpen, label: "Study" },
   { to: "/upload", icon: Upload, label: "Upload" },
+  { to: "/history", icon: Clock, label: "History" },
   { to: "/progress", icon: BarChart3, label: "Progress" },
   { to: "/rewards", icon: Trophy, label: "Rewards" },
   { to: "/settings", icon: Settings, label: "Settings" },
