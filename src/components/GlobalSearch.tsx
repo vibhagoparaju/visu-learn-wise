@@ -150,77 +150,80 @@ const GlobalSearch = () => {
         <kbd className="hidden md:inline-flex text-[10px] font-mono bg-background px-1.5 py-0.5 rounded border border-border">⌘K</kbd>
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[100] flex items-start justify-center pt-[15vh]"
-            onClick={() => setOpen(false)}
-          >
+      {createPortal(
+        <AnimatePresence>
+          {open && (
             <motion.div
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.95 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-lg mx-4 bg-card rounded-2xl shadow-elevated border border-border overflow-hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[100] flex items-start justify-center pt-[15vh]"
+              onClick={() => setOpen(false)}
             >
-              <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
-                <Search className="h-5 w-5 text-muted-foreground" />
-                <input
-                  ref={inputRef}
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search topics, documents, conversations..."
-                  className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-                />
-                <button onClick={() => setOpen(false)}>
-                  <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-                </button>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-lg mx-4 bg-card rounded-2xl shadow-elevated border border-border overflow-hidden"
+              >
+                <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+                  <Search className="h-5 w-5 text-muted-foreground" />
+                  <input
+                    ref={inputRef}
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search topics, documents, conversations..."
+                    className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                  />
+                  <button onClick={() => setOpen(false)}>
+                    <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                  </button>
+                </div>
 
-              <div className="max-h-80 overflow-y-auto p-2">
-                {loading && (
-                  <div className="flex items-center justify-center py-6">
-                    <div className="h-5 w-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                  </div>
-                )}
-                {!loading && query && results.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-6">No results found</p>
-                )}
-                {!loading &&
-                  results.map((r, i) => {
-                    const Icon = iconMap[r.type];
-                    return (
-                      <button
-                        key={`${r.type}-${r.title}-${i}`}
-                        onClick={() => handleSelect(r)}
-                        className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-xl hover:bg-accent transition-colors"
-                      >
-                        <div className="h-8 w-8 rounded-lg bg-accent flex items-center justify-center flex-shrink-0">
-                          <Icon className="h-4 w-4 text-primary" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground truncate">{r.title}</p>
-                          {r.subtitle && <p className="text-[10px] text-muted-foreground truncate">{r.subtitle}</p>}
-                        </div>
-                        <span className="text-[10px] font-medium text-muted-foreground capitalize px-2 py-0.5 rounded-full bg-muted">
-                          {r.type}
-                        </span>
-                      </button>
-                    );
-                  })}
-                {!query && (
-                  <p className="text-xs text-muted-foreground text-center py-6">
-                    Type to search your topics, documents, and conversations
-                  </p>
-                )}
-              </div>
+                <div className="max-h-80 overflow-y-auto p-2">
+                  {loading && (
+                    <div className="flex items-center justify-center py-6">
+                      <div className="h-5 w-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                    </div>
+                  )}
+                  {!loading && query && results.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-6">No results found</p>
+                  )}
+                  {!loading &&
+                    results.map((r, i) => {
+                      const Icon = iconMap[r.type];
+                      return (
+                        <button
+                          key={`${r.type}-${r.title}-${i}`}
+                          onClick={() => handleSelect(r)}
+                          className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-xl hover:bg-accent transition-colors"
+                        >
+                          <div className="h-8 w-8 rounded-lg bg-accent flex items-center justify-center flex-shrink-0">
+                            <Icon className="h-4 w-4 text-primary" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground truncate">{r.title}</p>
+                            {r.subtitle && <p className="text-[10px] text-muted-foreground truncate">{r.subtitle}</p>}
+                          </div>
+                          <span className="text-[10px] font-medium text-muted-foreground capitalize px-2 py-0.5 rounded-full bg-muted">
+                            {r.type}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  {!query && (
+                    <p className="text-xs text-muted-foreground text-center py-6">
+                      Type to search your topics, documents, and conversations
+                    </p>
+                  )}
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   );
 };
