@@ -96,7 +96,7 @@ const Dashboard = () => {
     const updated = taskList.map((t, i) => (i === index ? { ...t, done: !t.done } : t));
     setTaskList(updated);
     if (user) {
-      await saveDailyPlan(user.id, updated);
+      await saveDailyPlan(user.id, updated as any);
     }
   };
 
