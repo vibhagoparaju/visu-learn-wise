@@ -1,13 +1,13 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { LayoutDashboard, BookOpen, Upload, BarChart3, Trophy, Sparkles } from "lucide-react";
+import { LayoutDashboard, BookOpen, Upload, BarChart3, Clock, Sparkles } from "lucide-react";
 
 const items = [
   { to: "/", icon: LayoutDashboard, label: "Home" },
   { to: "/study", icon: BookOpen, label: "Study" },
   { to: "/upload", icon: Upload, label: "Upload" },
+  { to: "/history", icon: Clock, label: "History" },
   { to: "/progress", icon: BarChart3, label: "Progress" },
-  { to: "/rewards", icon: Trophy, label: "Rewards" },
 ];
 
 const MobileNav = () => {

@@ -12,6 +12,7 @@ import UploadNotes from "./pages/UploadNotes";
 import Progress from "./pages/Progress";
 import Rewards from "./pages/Rewards";
 import SettingsPage from "./pages/SettingsPage";
+import StudyHistory from "./pages/StudyHistory";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -65,6 +66,7 @@ const App = () => (
                 <Route path="/progress" element={<Progress />} />
                 <Route path="/rewards" element={<Rewards />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/history" element={<StudyHistory />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

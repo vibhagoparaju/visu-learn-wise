@@ -27,7 +27,7 @@ const item = {
 const quickActions = [
   { icon: MessageSquare, label: "Ask AI", to: "/study", gradient: "gradient-primary", shadow: "shadow-glow" },
   { icon: Upload, label: "Upload Notes", to: "/upload", gradient: "gradient-success", shadow: "shadow-glow-cyan" },
-  { icon: BookOpen, label: "Continue Study", to: "/progress", gradient: "gradient-warm", shadow: "" },
+  { icon: BookOpen, label: "Continue Study", to: "/history", gradient: "gradient-warm", shadow: "" },
 ];
 
 const Dashboard = () => {
