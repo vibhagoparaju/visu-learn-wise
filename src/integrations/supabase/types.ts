@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      bookmarks: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          topic: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          topic: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          topic?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           content: string
@@ -105,6 +129,42 @@ export type Database = {
           status?: string | null
           summary?: string | null
           topics?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      flashcards: {
+        Row: {
+          back: string
+          created_at: string
+          difficulty: number
+          front: string
+          id: string
+          next_review_at: string
+          review_count: number
+          topic: string
+          user_id: string
+        }
+        Insert: {
+          back: string
+          created_at?: string
+          difficulty?: number
+          front: string
+          id?: string
+          next_review_at?: string
+          review_count?: number
+          topic: string
+          user_id: string
+        }
+        Update: {
+          back?: string
+          created_at?: string
+          difficulty?: number
+          front?: string
+          id?: string
+          next_review_at?: string
+          review_count?: number
+          topic?: string
           user_id?: string
         }
         Relationships: []
