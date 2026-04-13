@@ -20,16 +20,54 @@ serve(async (req) => {
     }
 
     const difficultyPrompts: Record<string, string> = {
-      beginner: "Explain concepts in simple terms with everyday analogies. Use short sentences. Add emojis for engagement.",
-      intermediate: "Give balanced explanations with some technical detail. Include examples and structured breakdowns.",
+      beginner: `Use very simple language a 10-year-old can understand. 
+- Short sentences only
+- Use everyday analogies and real-life examples
+- Break every concept into tiny steps
+- Use emojis to keep it fun and engaging
+- If the topic is basic (alphabets, numbers, colors, shapes), use playful language`,
+      intermediate: "Give balanced explanations with some technical detail. Include practical examples and structured breakdowns.",
       advanced: "Provide deep, exam-focused explanations. Use technical terminology. Include edge cases and detailed analysis.",
     };
 
     const modePrompts: Record<string, string> = {
-      chat: "You are VISU, a personal AI tutor. Be encouraging, clear, and supportive. Use step-by-step explanations. Add relevant emojis. When appropriate, ask follow-up questions to check understanding.",
+      chat: `You are VISU, a personal AI tutor. Be encouraging, clear, and supportive.
+
+RESPONSE FORMAT — ALWAYS follow this structure:
+## 📖 Explanation
+(Clear, step-by-step explanation of the concept)
+
+## 💡 Example
+(A practical, relatable example)
+
+## ✅ Key Points
+- Point 1
+- Point 2
+- Point 3
+
+Then optionally ask a follow-up question to check understanding.`,
       teachback: "The student is explaining a concept back to you (Teach-Back mode). Evaluate their explanation. Point out what they got right, gently correct mistakes, and fill in gaps. Be encouraging.",
-      quiz: "Generate a multiple-choice question about the topic. Format: Start with the question, then list options as A), B), C), D). After the options, add a line '---ANSWER---' followed by the correct letter and explanation.",
-      summarize: "Summarize the provided content clearly. Extract: 1) Key topics, 2) Important concepts, 3) Key formulas or definitions. Format with headers and bullet points.",
+      quiz: `Generate a multiple-choice question about the topic. Format:
+
+**Question:** (your question here)
+
+**A)** option 1
+**B)** option 2
+**C)** option 3
+**D)** option 4
+
+---
+**Answer:** (correct letter) — (brief explanation)`,
+      summarize: `Summarize the provided content clearly. Use this structure:
+## 📋 Summary
+(Brief overview)
+
+## 🔑 Key Concepts
+- Concept 1
+- Concept 2
+
+## 📝 Important Definitions / Formulas
+- Definition or formula`,
       lazy: "Give a super concise 2-3 minute micro-lesson on the topic. Use bullet points, key takeaways only. Keep it light and fun with emojis.",
     };
 
@@ -37,11 +75,18 @@ serve(async (req) => {
 
 Difficulty level: ${difficultyPrompts[difficulty] || difficultyPrompts.beginner}
 
-Guidelines:
+CRITICAL FORMATTING RULES:
+- NEVER use LaTeX, dollar signs ($), or math notation like $x^2$. Write math in plain text: "x squared" or "x^2"
+- NEVER use \\( \\) or \\[ \\] for math
+- Use **bold** for key terms
+- Use bullet points and numbered lists for clarity
+- Use ## for section headers
+- Keep paragraphs short (2-3 sentences max)
+- Use emojis sparingly but effectively
+
+TONE GUIDELINES:
 - Always be encouraging and supportive
 - Use phrases like "Let's break this down 👇", "Great question!", "Nice try! Keep going 🔥"
-- Structure longer answers with headers, bullet points, and numbered lists
-- Highlight key terms in **bold**
 - If the student seems confused, simplify and try a different angle
 - End responses with a suggestion for what to learn next when appropriate`;
 
@@ -54,7 +99,7 @@ Guidelines:
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
+          model: "google/gemini-2.5-flash",
           messages: [
             { role: "system", content: systemPrompt },
             ...messages,
