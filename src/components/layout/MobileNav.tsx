@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { LayoutDashboard, BookOpen, Upload, Layers, BarChart3, Sparkles } from "lucide-react";
+import { LayoutDashboard, BookOpen, Upload, Layers, BarChart3, Coffee } from "lucide-react";
 import GlobalSearch from "@/components/GlobalSearch";
 
 const items = [
@@ -18,7 +18,7 @@ const MobileNav = () => {
     <>
       <header className="md:hidden flex items-center gap-2.5 p-3 border-b border-border glass sticky top-0 z-40">
         <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center flex-shrink-0">
-          <Sparkles className="h-4 w-4 text-primary-foreground" />
+          <Coffee className="h-4 w-4 text-primary-foreground" />
         </div>
         <div className="flex-1">
           <GlobalSearch />
@@ -27,11 +27,15 @@ const MobileNav = () => {
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 glass border-t border-border flex justify-around py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] z-50">
         {items.map((item) => {
-          const isActive = location.pathname === item.to;
+          const isActive =
+            item.to === "/"
+              ? location.pathname === "/"
+              : location.pathname.startsWith(item.to);
           return (
             <NavLink
               key={item.to}
               to={item.to}
+              end={item.to === "/"}
               className="relative flex flex-col items-center gap-0.5 px-3 py-1"
             >
               {isActive && (
