@@ -1,15 +1,18 @@
 import { motion } from "framer-motion";
-import { Upload, MessageSquare, Zap, CheckCircle2, Circle, LogOut, BookOpen, Rocket } from "lucide-react";
+import { Upload, MessageSquare, Zap, CheckCircle2, Circle, LogOut, BookOpen, Rocket, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import EmptyState from "@/components/study/EmptyState";
+import { generateDailyPlan, saveDailyPlan } from "@/services/studyPlanner";
 
 interface StudyTask {
   text: string;
   done: boolean;
+  topicId?: string;
+  type?: string;
 }
 
 const container = {
@@ -24,7 +27,7 @@ const item = {
 const quickActions = [
   { icon: MessageSquare, label: "Ask AI", to: "/study", gradient: "gradient-primary", shadow: "shadow-glow" },
   { icon: Upload, label: "Upload Notes", to: "/upload", gradient: "gradient-success", shadow: "shadow-glow-cyan" },
-  { icon: BookOpen, label: "Continue Study", to: "/study", gradient: "gradient-warm", shadow: "" },
+  { icon: BookOpen, label: "Continue Study", to: "/progress", gradient: "gradient-warm", shadow: "" },
 ];
 
 const Dashboard = () => {
@@ -32,8 +35,11 @@ const Dashboard = () => {
   const { profile, user, signOut } = useAuth();
   const [taskList, setTaskList] = useState<StudyTask[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(true);
+  const [generatingPlan, setGeneratingPlan] = useState(false);
   const [hasDocuments, setHasDocuments] = useState(false);
   const [progressCount, setProgressCount] = useState(0);
+  const [totalTopics, setTotalTopics] = useState(0);
+  const [completedTopics, setCompletedTopics] = useState(0);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -46,7 +52,6 @@ const Dashboard = () => {
     const fetchData = async () => {
       setLoadingTasks(true);
 
-      // Fetch today's study plan
       const today = new Date().toISOString().split("T")[0];
       const { data: plan } = await supabase
         .from("study_plans")
@@ -61,19 +66,22 @@ const Dashboard = () => {
         setTaskList([]);
       }
 
-      // Check if user has documents
       const { count: docCount } = await supabase
         .from("documents")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id);
       setHasDocuments((docCount || 0) > 0);
 
-      // Check progress topics
-      const { count: progCount } = await supabase
+      const { data: progressData } = await supabase
         .from("study_progress")
-        .select("id", { count: "exact", head: true })
+        .select("id, mastery_pct")
         .eq("user_id", user.id);
-      setProgressCount(progCount || 0);
+
+      const total = progressData?.length || 0;
+      const completed = progressData?.filter((p) => p.mastery_pct >= 75).length || 0;
+      setTotalTopics(total);
+      setCompletedTopics(completed);
+      setProgressCount(total);
 
       setLoadingTasks(false);
     };
@@ -82,12 +90,29 @@ const Dashboard = () => {
 
   const completedCount = taskList.filter((t) => t.done).length;
   const hasAnyData = hasDocuments || progressCount > 0 || taskList.length > 0;
+  const overallProgress = totalTopics > 0 ? Math.round((completedTopics / totalTopics) * 100) : 0;
 
-  const toggleTask = (index: number) => {
-    setTaskList((prev) => prev.map((t, i) => (i === index ? { ...t, done: !t.done } : t)));
+  const toggleTask = async (index: number) => {
+    const updated = taskList.map((t, i) => (i === index ? { ...t, done: !t.done } : t));
+    setTaskList(updated);
+    if (user) {
+      await saveDailyPlan(user.id, updated);
+    }
   };
 
-  // Smart nudge
+  const handleGeneratePlan = async () => {
+    if (!user) return;
+    setGeneratingPlan(true);
+    try {
+      const tasks = await generateDailyPlan(user.id);
+      setTaskList(tasks);
+      await saveDailyPlan(user.id, tasks);
+    } catch {
+      // silent
+    }
+    setGeneratingPlan(false);
+  };
+
   const nudge = !hasDocuments
     ? "Upload your first study material to get started! 📄"
     : progressCount > 0
@@ -125,7 +150,7 @@ const Dashboard = () => {
         {[
           { emoji: "🔥", value: String(streakDays), label: "Day Streak" },
           { emoji: "⚡", value: String(xp), label: "XP Points" },
-          { emoji: "📊", value: `Lv.${profile?.level || 1}`, label: "Level" },
+          { emoji: "📊", value: `${overallProgress}%`, label: "Mastery" },
         ].map((s) => (
           <motion.div
             key={s.label}
@@ -140,41 +165,96 @@ const Dashboard = () => {
         ))}
       </motion.div>
 
-      {/* Today's Plan — only if tasks exist */}
-      {!loadingTasks && taskList.length > 0 && (
+      {/* Overall Progress Bar */}
+      {totalTopics > 0 && (
         <motion.div variants={item} className="bg-card rounded-2xl p-5 shadow-card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-foreground">Today's Plan</h2>
-            <span className="text-xs font-medium text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
-              {completedCount}/{taskList.length}
-            </span>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-foreground">Learning Progress</h2>
+            <span className="text-xs font-medium text-muted-foreground">{completedTopics}/{totalTopics} topics mastered</span>
           </div>
-          <div className="space-y-3">
-            {taskList.map((task, i) => (
-              <motion.button key={i} whileTap={{ scale: 0.98 }} onClick={() => toggleTask(i)} className="flex items-center gap-3 w-full text-left group">
-                {task.done ? (
-                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
-                ) : (
-                  <Circle className="h-5 w-5 text-muted-foreground/40 group-hover:text-primary/60 flex-shrink-0 transition-colors" />
-                )}
-                <span className={`text-sm transition-colors ${task.done ? "text-muted-foreground line-through" : "text-foreground"}`}>
-                  {task.text}
-                </span>
-              </motion.button>
-            ))}
-          </div>
-          <div className="mt-4">
-            <div className="h-2 bg-muted rounded-full overflow-hidden">
-              <motion.div
-                className="h-full gradient-primary rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${taskList.length > 0 ? (completedCount / taskList.length) * 100 : 0}%` }}
-                transition={{ duration: 0.8, delay: 0.3 }}
-              />
-            </div>
+          <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+            <motion.div
+              className="h-full gradient-primary rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${overallProgress}%` }}
+              transition={{ duration: 1, delay: 0.3 }}
+            />
           </div>
         </motion.div>
       )}
+
+      {/* Today's Plan */}
+      <motion.div variants={item} className="bg-card rounded-2xl p-5 shadow-card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-foreground">Today's Plan</h2>
+          <div className="flex items-center gap-2">
+            {taskList.length > 0 && (
+              <span className="text-xs font-medium text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+                {completedCount}/{taskList.length}
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-lg"
+              onClick={handleGeneratePlan}
+              disabled={generatingPlan}
+              title="Generate smart plan"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${generatingPlan ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+        </div>
+
+        {taskList.length > 0 ? (
+          <>
+            <div className="space-y-3">
+              {taskList.map((task, i) => (
+                <motion.button key={i} whileTap={{ scale: 0.98 }} onClick={() => toggleTask(i)} className="flex items-center gap-3 w-full text-left group">
+                  {task.done ? (
+                    <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
+                  ) : (
+                    <Circle className="h-5 w-5 text-muted-foreground/40 group-hover:text-primary/60 flex-shrink-0 transition-colors" />
+                  )}
+                  <span className={`text-sm transition-colors ${task.done ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                    {task.text}
+                  </span>
+                </motion.button>
+              ))}
+            </div>
+            <div className="mt-4">
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full gradient-primary rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${taskList.length > 0 ? (completedCount / taskList.length) * 100 : 0}%` }}
+                  transition={{ duration: 0.8, delay: 0.3 }}
+                />
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-4">
+            <p className="text-sm text-muted-foreground mb-3">No plan for today yet</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full px-5"
+              onClick={handleGeneratePlan}
+              disabled={generatingPlan}
+            >
+              {generatingPlan ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                "Generate Smart Plan ✨"
+              )}
+            </Button>
+          </div>
+        )}
+      </motion.div>
 
       {/* Empty state for new users */}
       {!loadingTasks && !hasAnyData && (

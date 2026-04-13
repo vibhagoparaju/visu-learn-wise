@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Volume2, VolumeX, Palette, GraduationCap, User } from "lucide-react";
+import { Sparkles, Volume2, VolumeX, Palette, GraduationCap, User, Moon, Sun } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/hooks/useTheme";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -17,6 +18,7 @@ const item = {
 
 const SettingsPage = () => {
   const { profile, user, refreshProfile } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [tutorName, setTutorName] = useState(profile?.tutor_name || "VISU");
   const [difficulty, setDifficulty] = useState<"beginner" | "intermediate" | "advanced">(
     (profile?.difficulty_level as any) || "beginner"
@@ -66,6 +68,28 @@ const SettingsPage = () => {
       <motion.div variants={item}>
         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
         <p className="text-sm text-muted-foreground mt-1">Personalize your AI tutor experience</p>
+      </motion.div>
+
+      {/* Theme Toggle */}
+      <motion.div variants={item} className="bg-card rounded-2xl p-5 shadow-card">
+        <button onClick={toggleTheme} className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-3">
+            <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${theme === "dark" ? "gradient-primary" : "bg-muted"}`}>
+              {theme === "dark" ? <Moon className="h-5 w-5 text-primary-foreground" /> : <Sun className="h-5 w-5 text-muted-foreground" />}
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-foreground">Dark Mode</p>
+              <p className="text-xs text-muted-foreground">{theme === "dark" ? "Dark theme active" : "Light theme active"}</p>
+            </div>
+          </div>
+          <div className={`h-7 w-12 rounded-full transition-colors relative ${theme === "dark" ? "bg-primary" : "bg-muted"}`}>
+            <motion.div
+              className="h-5 w-5 rounded-full bg-white shadow absolute top-1"
+              animate={{ left: theme === "dark" ? 24 : 4 }}
+              transition={{ type: "spring", bounce: 0.3 }}
+            />
+          </div>
+        </button>
       </motion.div>
 
       {/* Tutor Name */}
