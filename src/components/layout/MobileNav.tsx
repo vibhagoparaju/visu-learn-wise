@@ -1,12 +1,13 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { LayoutDashboard, BookOpen, Upload, BarChart3, Clock, Sparkles } from "lucide-react";
+import { LayoutDashboard, BookOpen, Upload, Layers, BarChart3, Sparkles } from "lucide-react";
+import GlobalSearch from "@/components/GlobalSearch";
 
 const items = [
   { to: "/", icon: LayoutDashboard, label: "Home" },
   { to: "/study", icon: BookOpen, label: "Study" },
   { to: "/upload", icon: Upload, label: "Upload" },
-  { to: "/history", icon: Clock, label: "History" },
+  { to: "/flashcards", icon: Layers, label: "Cards" },
   { to: "/progress", icon: BarChart3, label: "Progress" },
 ];
 
@@ -15,11 +16,13 @@ const MobileNav = () => {
 
   return (
     <>
-      <header className="md:hidden flex items-center gap-2.5 p-4 border-b border-border glass sticky top-0 z-40">
-        <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center shadow-glow">
+      <header className="md:hidden flex items-center gap-2.5 p-3 border-b border-border glass sticky top-0 z-40">
+        <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center shadow-glow flex-shrink-0">
           <Sparkles className="h-4 w-4 text-primary-foreground" />
         </div>
-        <span className="text-lg font-bold text-gradient font-display">VISU</span>
+        <div className="flex-1">
+          <GlobalSearch />
+        </div>
       </header>
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 glass border-t border-border flex justify-around py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] z-50">

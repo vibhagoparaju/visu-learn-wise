@@ -13,6 +13,9 @@ import Progress from "./pages/Progress";
 import Rewards from "./pages/Rewards";
 import SettingsPage from "./pages/SettingsPage";
 import StudyHistory from "./pages/StudyHistory";
+import Flashcards from "./pages/Flashcards";
+import Quiz from "./pages/Quiz";
+import Bookmarks from "./pages/Bookmarks";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -67,6 +70,9 @@ const App = () => (
                 <Route path="/rewards" element={<Rewards />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/history" element={<StudyHistory />} />
+                <Route path="/flashcards" element={<Flashcards />} />
+                <Route path="/quiz" element={<Quiz />} />
+                <Route path="/bookmarks" element={<Bookmarks />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
