@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, User, Maximize2, Minimize2, MessageSquareText, Lightbulb, Mic, MicOff, Volume2, VolumeX, Loader2, HelpCircle, Coffee } from "lucide-react";
+import { Send, Sparkles, User, Maximize2, Minimize2, MessageSquareText, Lightbulb, Mic, MicOff, Volume2, VolumeX, Loader2, HelpCircle, Coffee, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useVoice } from "@/hooks/useVoice";
 import { streamChat } from "@/services/ai";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import WellnessReminder from "@/components/study/WellnessReminder";
@@ -43,18 +44,18 @@ const modeConfig: Record<StudyMode, { label: string; icon: any; desc: string }> 
   chat: { label: "Chat", icon: Sparkles, desc: "Ask anything" },
   teachback: { label: "Teach Back", icon: MessageSquareText, desc: "Explain to learn" },
   quiz: { label: "Quiz", icon: HelpCircle, desc: "Test yourself" },
-  lazy: { label: "Lazy", icon: Coffee, desc: "Quick lessons" },
+  lazy: { label: "Quick", icon: Coffee, desc: "2-min lessons" },
 };
 
 const Study = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { topic: urlTopic } = useParams();
   const tutorName = profile?.tutor_name || "VISU";
   const difficulty = profile?.difficulty_level || "beginner";
 
   const topicIntro = urlTopic
-    ? `Hey there! 👋 I'm ${tutorName}.\n\nLet's study **${decodeURIComponent(urlTopic)}** together! I'll explain it step by step.\n\nReady? Let's go! 🚀`
-    : `Hey there! 👋 I'm ${tutorName}, your personal AI tutor.\n\nWhat would you like to learn today? I can:\n• **Explain any concept** step-by-step\n• **Quiz you** with questions\n• **Summarize** complex topics\n\nAsk me anything or upload your notes to get started! 🚀`;
+    ? `Hey! I'm ${tutorName}. Let's study **${decodeURIComponent(urlTopic)}** together. Ready?`
+    : `Hi, I'm ${tutorName}, your AI tutor.\n\nWhat would you like to learn today?`;
 
   const [messages, setMessages] = useState<Message[]>([
     { id: "welcome", role: "assistant", content: topicIntro },
@@ -83,6 +84,43 @@ const Study = () => {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isLoading]);
+
+  const retainAsFlashcards = async (content: string) => {
+    if (!user) return;
+    toast.loading("Creating flashcards...", { id: "retain" });
+
+    let result = "";
+    await streamChat({
+      messages: [
+        {
+          role: "user",
+          content: `Based on this explanation, generate exactly 3 flashcards. Return ONLY a JSON array with objects having "front" (question) and "back" (answer) keys. No markdown, no code blocks, just the raw JSON array.\n\nExplanation:\n${content}`,
+        },
+      ],
+      mode: "chat",
+      difficulty: "beginner",
+      onDelta: (d) => (result += d),
+      onDone: async () => {
+        try {
+          const jsonMatch = result.match(/\[[\s\S]*\]/);
+          if (!jsonMatch) throw new Error("No JSON");
+          const parsed = JSON.parse(jsonMatch[0]) as { front: string; back: string }[];
+          const topic = urlTopic ? decodeURIComponent(urlTopic) : "General";
+          const inserts = parsed.map((c) => ({
+            user_id: user.id,
+            topic,
+            front: c.front,
+            back: c.back,
+          }));
+          await supabase.from("flashcards").insert(inserts);
+          toast.success(`${parsed.length} flashcards saved`, { id: "retain" });
+        } catch {
+          toast.error("Failed to create flashcards", { id: "retain" });
+        }
+      },
+      onError: () => toast.error("Failed to create flashcards", { id: "retain" }),
+    });
+  };
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -175,10 +213,10 @@ const Study = () => {
       >
         <div className="min-w-0">
           <h1 className="text-lg font-bold text-foreground truncate">
-            {urlTopic ? `Studying: ${decodeURIComponent(urlTopic)}` : `Study with ${tutorName}`}
+            {urlTopic ? decodeURIComponent(urlTopic) : `Study with ${tutorName}`}
           </h1>
           <p className="text-xs text-muted-foreground">
-            {modeConfig[mode].desc} • {difficulty} level
+            {modeConfig[mode].desc} · {difficulty}
           </p>
         </div>
         <Button
@@ -186,7 +224,6 @@ const Study = () => {
           size="icon"
           className="h-8 w-8 rounded-lg flex-shrink-0"
           onClick={() => setFocusMode(!focusMode)}
-          title="Focus Mode"
         >
           {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
         </Button>
@@ -203,7 +240,7 @@ const Study = () => {
               onClick={() => setMode(m)}
               className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full whitespace-nowrap transition-all ${
                 mode === m
-                  ? "bg-primary text-primary-foreground shadow-glow"
+                  ? "bg-primary text-primary-foreground"
                   : "bg-muted text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -233,7 +270,7 @@ const Study = () => {
               <div
                 className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   msg.role === "user"
-                    ? "gradient-primary text-primary-foreground rounded-br-md shadow-glow"
+                    ? "gradient-primary text-primary-foreground rounded-br-md"
                     : "bg-card shadow-card text-foreground rounded-bl-md"
                 }`}
               >
@@ -245,13 +282,22 @@ const Study = () => {
                   <span className="whitespace-pre-wrap">{msg.content}</span>
                 )}
                 {msg.role === "assistant" && msg.id !== "welcome" && msg.id !== "streaming" && (
-                  <button
-                    onClick={() => isSpeaking ? stopSpeaking() : speak(msg.content)}
-                    className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    {isSpeaking ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
-                    {isSpeaking ? "Stop" : "Listen"}
-                  </button>
+                  <div className="mt-2 flex items-center gap-3 border-t border-border/50 pt-2">
+                    <button
+                      onClick={() => isSpeaking ? stopSpeaking() : speak(msg.content)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      {isSpeaking ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
+                      {isSpeaking ? "Stop" : "Listen"}
+                    </button>
+                    <button
+                      onClick={() => retainAsFlashcards(msg.content)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <Brain className="h-3 w-3" />
+                      Retain
+                    </button>
+                  </div>
                 )}
               </div>
               {msg.role === "user" && (
@@ -274,13 +320,13 @@ const Study = () => {
           transition={{ delay: 0.5 }}
           className="flex gap-2 pb-3 overflow-x-auto"
         >
-          {["Explain a concept", "Quiz me on a topic", "Help me study"].map((prompt) => (
+          {["Explain a concept", "Quiz me", "Help me study"].map((prompt) => (
             <button
               key={prompt}
               onClick={() => setInput(prompt)}
-              className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-full border border-primary/20 text-primary bg-accent hover:bg-primary hover:text-primary-foreground transition-colors"
+              className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-full border border-border text-foreground bg-card hover:bg-accent transition-colors"
             >
-              <Lightbulb className="h-3 w-3" />
+              <Lightbulb className="h-3 w-3 text-primary" />
               {prompt}
             </button>
           ))}
@@ -293,10 +339,9 @@ const Study = () => {
           variant={isListening ? "default" : "ghost"}
           size="icon"
           onClick={handleVoiceInput}
-          className={`rounded-xl h-12 w-12 flex-shrink-0 ${isListening ? "animate-pulse bg-destructive hover:bg-destructive" : ""}`}
-          title={isListening ? "Stop listening" : "Voice input"}
+          className={`rounded-xl h-11 w-11 flex-shrink-0 ${isListening ? "animate-pulse bg-destructive hover:bg-destructive" : ""}`}
         >
-          {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+          {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
         </Button>
 
         <input
@@ -314,16 +359,16 @@ const Study = () => {
               ? "Topic for a quick lesson..."
               : `Ask ${tutorName} anything...`
           }
-          className="flex-1 bg-card rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground shadow-card focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+          className="flex-1 bg-card rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground shadow-card focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
         />
         <Button
           variant="gradient"
           size="icon"
           onClick={sendMessage}
           disabled={!input.trim() || isLoading}
-          className="rounded-xl h-12 w-12 shadow-glow"
+          className="rounded-xl h-11 w-11"
         >
-          {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
     </div>

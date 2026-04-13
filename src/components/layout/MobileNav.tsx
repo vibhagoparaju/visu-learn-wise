@@ -17,7 +17,7 @@ const MobileNav = () => {
   return (
     <>
       <header className="md:hidden flex items-center gap-2.5 p-3 border-b border-border glass sticky top-0 z-40">
-        <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center shadow-glow flex-shrink-0">
+        <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center flex-shrink-0">
           <Sparkles className="h-4 w-4 text-primary-foreground" />
         </div>
         <div className="flex-1">
