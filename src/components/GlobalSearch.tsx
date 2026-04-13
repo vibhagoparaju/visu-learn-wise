@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, FileText, MessageSquare, BookOpen, X } from "lucide-react";
@@ -20,6 +20,7 @@ const GlobalSearch = () => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -35,7 +36,10 @@ const GlobalSearch = () => {
   }, []);
 
   useEffect(() => {
-    if (open) inputRef.current?.focus();
+    if (open) {
+      inputRef.current?.focus();
+      setActiveIdx(0);
+    }
   }, [open]);
 
   useEffect(() => {
@@ -47,97 +51,81 @@ const GlobalSearch = () => {
       setLoading(true);
       const q = query.toLowerCase();
       const [docsRes, convosRes, progressRes] = await Promise.all([
-        supabase
-          .from("documents")
-          .select("id, file_name, topics")
-          .eq("user_id", user.id)
-          .eq("status", "done")
-          .limit(20),
-        supabase
-          .from("conversations")
-          .select("id, title")
-          .eq("user_id", user.id)
-          .limit(20),
-        supabase
-          .from("study_progress")
-          .select("topic, subtopic")
-          .eq("user_id", user.id)
-          .limit(50),
+        supabase.from("documents").select("id, file_name, topics").eq("user_id", user.id).eq("status", "done").limit(20),
+        supabase.from("conversations").select("id, title").eq("user_id", user.id).limit(20),
+        supabase.from("study_progress").select("topic, subtopic").eq("user_id", user.id).limit(50),
       ]);
 
       const r: SearchResult[] = [];
 
-      // Search topics from progress
       progressRes.data?.forEach((p) => {
         if (p.topic.toLowerCase().includes(q) || p.subtopic?.toLowerCase().includes(q)) {
-          r.push({
-            type: "topic",
-            title: p.topic,
-            subtitle: p.subtopic || undefined,
-            route: `/study/${encodeURIComponent(p.topic)}`,
-          });
+          r.push({ type: "topic", title: p.topic, subtitle: p.subtopic || undefined, route: `/study/${encodeURIComponent(p.topic)}` });
         }
       });
 
-      // Search documents
       docsRes.data?.forEach((d) => {
         if (d.file_name.toLowerCase().includes(q)) {
-          r.push({
-            type: "document",
-            title: d.file_name,
-            route: "/history",
-          });
+          r.push({ type: "document", title: d.file_name, route: "/history" });
         }
         const topics = (d.topics as string[]) || [];
         topics.forEach((t) => {
           if (t.toLowerCase().includes(q)) {
-            r.push({
-              type: "topic",
-              title: t,
-              subtitle: `From: ${d.file_name}`,
-              route: `/study/${encodeURIComponent(t)}`,
-            });
+            r.push({ type: "topic", title: t, subtitle: `From: ${d.file_name}`, route: `/study/${encodeURIComponent(t)}` });
           }
         });
       });
 
-      // Search conversations
       convosRes.data?.forEach((c) => {
         if (c.title?.toLowerCase().includes(q)) {
-          r.push({
-            type: "conversation",
-            title: c.title || "Chat Session",
-            route: "/study",
-          });
+          r.push({ type: "conversation", title: c.title || "Chat Session", route: "/study" });
         }
       });
 
-      // Deduplicate by title
       const seen = new Set<string>();
-      setResults(
-        r.filter((item) => {
-          const key = `${item.type}:${item.title}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        }).slice(0, 10)
-      );
+      const deduped = r.filter((item) => {
+        const key = `${item.type}:${item.title}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }).slice(0, 10);
+
+      setResults(deduped);
+      setActiveIdx(0);
       setLoading(false);
     }, 300);
     return () => clearTimeout(timer);
   }, [query, user]);
 
-  const iconMap = {
-    topic: BookOpen,
-    document: FileText,
-    conversation: MessageSquare,
-  };
+  // Group results by type
+  const grouped = results.reduce((acc, r) => {
+    if (!acc[r.type]) acc[r.type] = [];
+    acc[r.type].push(r);
+    return acc;
+  }, {} as Record<string, SearchResult[]>);
 
-  const handleSelect = (result: SearchResult) => {
+  const typeLabels: Record<string, string> = { topic: "Topics", document: "Documents", conversation: "Conversations" };
+  const iconMap = { topic: BookOpen, document: FileText, conversation: MessageSquare };
+
+  const handleSelect = useCallback((result: SearchResult) => {
     navigate(result.route);
     setOpen(false);
     setQuery("");
+  }, [navigate]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIdx((i) => Math.min(i + 1, results.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIdx((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter" && results[activeIdx]) {
+      handleSelect(results[activeIdx]);
+    }
   };
+
+  let flatIdx = -1;
 
   return (
     <>
@@ -146,7 +134,7 @@ const GlobalSearch = () => {
         className="flex items-center gap-2 w-full bg-muted rounded-xl px-3 py-2 text-sm text-muted-foreground hover:bg-accent transition-colors"
       >
         <Search className="h-4 w-4" />
-        <span className="flex-1 text-left">Search topics, docs...</span>
+        <span className="flex-1 text-left">Search...</span>
         <kbd className="hidden md:inline-flex text-[10px] font-mono bg-background px-1.5 py-0.5 rounded border border-border">⌘K</kbd>
       </button>
 
@@ -173,6 +161,7 @@ const GlobalSearch = () => {
                     ref={inputRef}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={handleKeyDown}
                     placeholder="Search topics, documents, conversations..."
                     className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
                   />
@@ -190,31 +179,38 @@ const GlobalSearch = () => {
                   {!loading && query && results.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-6">No results found</p>
                   )}
-                  {!loading &&
-                    results.map((r, i) => {
-                      const Icon = iconMap[r.type];
-                      return (
-                        <button
-                          key={`${r.type}-${r.title}-${i}`}
-                          onClick={() => handleSelect(r)}
-                          className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-xl hover:bg-accent transition-colors"
-                        >
-                          <div className="h-8 w-8 rounded-lg bg-accent flex items-center justify-center flex-shrink-0">
-                            <Icon className="h-4 w-4 text-primary" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-foreground truncate">{r.title}</p>
-                            {r.subtitle && <p className="text-[10px] text-muted-foreground truncate">{r.subtitle}</p>}
-                          </div>
-                          <span className="text-[10px] font-medium text-muted-foreground capitalize px-2 py-0.5 rounded-full bg-muted">
-                            {r.type}
-                          </span>
-                        </button>
-                      );
-                    })}
+                  {!loading && Object.entries(grouped).map(([type, items]) => (
+                    <div key={type} className="mb-2">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1">
+                        {typeLabels[type] || type}
+                      </p>
+                      {items.map((r) => {
+                        flatIdx++;
+                        const idx = flatIdx;
+                        const Icon = iconMap[r.type as keyof typeof iconMap];
+                        return (
+                          <button
+                            key={`${r.type}-${r.title}-${idx}`}
+                            onClick={() => handleSelect(r)}
+                            className={`flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-xl transition-colors ${
+                              activeIdx === idx ? "bg-accent" : "hover:bg-accent"
+                            }`}
+                          >
+                            <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                              <Icon className="h-4 w-4 text-primary" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-foreground truncate">{r.title}</p>
+                              {r.subtitle && <p className="text-[10px] text-muted-foreground truncate">{r.subtitle}</p>}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
                   {!query && (
                     <p className="text-xs text-muted-foreground text-center py-6">
-                      Type to search your topics, documents, and conversations
+                      Type to search across your knowledge base
                     </p>
                   )}
                 </div>

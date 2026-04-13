@@ -15,78 +15,98 @@ import {
 } from "lucide-react";
 import GlobalSearch from "@/components/GlobalSearch";
 
-const navItems = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/study", icon: BookOpen, label: "Study" },
-  { to: "/upload", icon: Upload, label: "Upload" },
-  { to: "/flashcards", icon: Layers, label: "Flashcards" },
-  { to: "/quiz", icon: HelpCircle, label: "Quiz" },
-  { to: "/bookmarks", icon: Bookmark, label: "Bookmarks" },
-  { to: "/history", icon: Clock, label: "History" },
-  { to: "/progress", icon: BarChart3, label: "Progress" },
-  { to: "/rewards", icon: Trophy, label: "Rewards" },
-  { to: "/settings", icon: Settings, label: "Settings" },
+const navGroups = [
+  {
+    label: "Learn",
+    items: [
+      { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+      { to: "/study", icon: BookOpen, label: "Study" },
+      { to: "/upload", icon: Upload, label: "Upload" },
+    ],
+  },
+  {
+    label: "Review",
+    items: [
+      { to: "/flashcards", icon: Layers, label: "Flashcards" },
+      { to: "/quiz", icon: HelpCircle, label: "Quiz" },
+    ],
+  },
+  {
+    label: "Track",
+    items: [
+      { to: "/progress", icon: BarChart3, label: "Progress" },
+      { to: "/history", icon: Clock, label: "History" },
+      { to: "/bookmarks", icon: Bookmark, label: "Bookmarks" },
+      { to: "/rewards", icon: Trophy, label: "Rewards" },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { to: "/settings", icon: Settings, label: "Settings" },
+    ],
+  },
 ];
 
 const AppSidebar = () => {
   const location = useLocation();
 
   return (
-    <aside className="hidden md:flex flex-col w-64 border-r border-border bg-card/50 backdrop-blur-sm min-h-screen p-4">
-      <div className="flex items-center gap-2.5 px-3 mb-4">
-        <div className="h-10 w-10 rounded-xl gradient-primary flex items-center justify-center shadow-glow">
-          <Sparkles className="h-5 w-5 text-primary-foreground" />
+    <aside className="hidden md:flex flex-col w-60 border-r border-border bg-card/50 backdrop-blur-sm min-h-screen p-4">
+      <div className="flex items-center gap-2.5 px-3 mb-6">
+        <div className="h-9 w-9 rounded-xl gradient-primary flex items-center justify-center shadow-glow">
+          <Sparkles className="h-4 w-4 text-primary-foreground" />
         </div>
         <div>
-          <span className="text-xl font-bold text-gradient font-display">VISU</span>
-          <p className="text-[10px] text-muted-foreground -mt-0.5">Personal AI Tutor</p>
+          <span className="text-lg font-bold text-gradient font-display">VISU</span>
+          <p className="text-[10px] text-muted-foreground -mt-0.5">AI Tutor</p>
         </div>
       </div>
 
-      {/* Search */}
-      <div className="px-1 mb-4">
+      <div className="px-1 mb-5">
         <GlobalSearch />
       </div>
 
-      <nav className="flex flex-col gap-0.5 flex-1 overflow-y-auto">
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.to;
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className="relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors"
-            >
-              {isActive && (
-                <motion.div
-                  layoutId="sidebar-active"
-                  className="absolute inset-0 bg-accent rounded-xl border border-primary/10"
-                  transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
-                />
-              )}
-              <item.icon
-                className={`h-4.5 w-4.5 relative z-10 transition-colors ${
-                  isActive ? "text-primary" : "text-muted-foreground"
-                }`}
-              />
-              <span
-                className={`relative z-10 transition-colors ${
-                  isActive ? "text-foreground font-semibold" : "text-muted-foreground"
-                }`}
-              >
-                {item.label}
-              </span>
-            </NavLink>
-          );
-        })}
+      <nav className="flex flex-col gap-1 flex-1 overflow-y-auto">
+        {navGroups.map((group, gi) => (
+          <div key={group.label}>
+            {gi > 0 && <div className="h-px bg-border mx-3 my-2" />}
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-1">
+              {group.label}
+            </p>
+            {group.items.map((item) => {
+              const isActive = location.pathname === item.to;
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className="relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors"
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="sidebar-active"
+                      className="absolute inset-0 bg-accent rounded-xl border border-primary/10"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                    />
+                  )}
+                  <item.icon
+                    className={`h-4 w-4 relative z-10 transition-colors ${
+                      isActive ? "text-primary" : "text-muted-foreground"
+                    }`}
+                  />
+                  <span
+                    className={`relative z-10 transition-colors ${
+                      isActive ? "text-foreground font-semibold" : "text-muted-foreground"
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                </NavLink>
+              );
+            })}
+          </div>
+        ))}
       </nav>
-
-      <div className="p-4 rounded-2xl gradient-primary text-primary-foreground mt-2">
-        <p className="text-xs font-semibold opacity-90">🚀 Pro Tip</p>
-        <p className="text-[11px] opacity-75 mt-1 leading-relaxed">
-          Use flashcards & quizzes to boost retention by 3x!
-        </p>
-      </div>
     </aside>
   );
 };
