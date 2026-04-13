@@ -7,11 +7,12 @@ import {
   BarChart3,
   Trophy,
   Settings,
-  Sparkles,
+  Coffee,
   Clock,
   Layers,
   HelpCircle,
   Bookmark,
+  CalendarDays,
 } from "lucide-react";
 import GlobalSearch from "@/components/GlobalSearch";
 
@@ -35,6 +36,7 @@ const navGroups = [
     label: "Track",
     items: [
       { to: "/progress", icon: BarChart3, label: "Progress" },
+      { to: "/planner", icon: CalendarDays, label: "Planner" },
       { to: "/history", icon: Clock, label: "History" },
       { to: "/bookmarks", icon: Bookmark, label: "Bookmarks" },
       { to: "/rewards", icon: Trophy, label: "Rewards" },
@@ -52,14 +54,14 @@ const AppSidebar = () => {
   const location = useLocation();
 
   return (
-    <aside className="hidden md:flex flex-col w-60 border-r border-border bg-card/50 backdrop-blur-sm min-h-screen p-4">
+    <aside className="hidden md:flex flex-col w-60 border-r border-border bg-sidebar min-h-screen p-4">
       <div className="flex items-center gap-2.5 px-3 mb-6">
-        <div className="h-9 w-9 rounded-xl gradient-primary flex items-center justify-center shadow-glow">
-          <Sparkles className="h-4 w-4 text-primary-foreground" />
+        <div className="h-9 w-9 rounded-xl gradient-primary flex items-center justify-center">
+          <Coffee className="h-4 w-4 text-primary-foreground" />
         </div>
         <div>
           <span className="text-lg font-bold text-gradient font-display">VISU</span>
-          <p className="text-[10px] text-muted-foreground -mt-0.5">AI Tutor</p>
+          <p className="text-[10px] text-muted-foreground -mt-0.5">Your learning space</p>
         </div>
       </div>
 
@@ -67,19 +69,23 @@ const AppSidebar = () => {
         <GlobalSearch />
       </div>
 
-      <nav className="flex flex-col gap-1 flex-1 overflow-y-auto">
+      <nav className="flex flex-col gap-0.5 flex-1 overflow-y-auto">
         {navGroups.map((group, gi) => (
           <div key={group.label}>
-            {gi > 0 && <div className="h-px bg-border mx-3 my-2" />}
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-1">
+            {gi > 0 && <div className="h-px bg-border mx-3 my-3" />}
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-1.5">
               {group.label}
             </p>
-            {group.items.map((item) => {
-              const isActive = location.pathname === item.to;
+            {group.items.map((navItem) => {
+              const isActive =
+                navItem.to === "/"
+                  ? location.pathname === "/"
+                  : location.pathname.startsWith(navItem.to);
               return (
                 <NavLink
-                  key={item.to}
-                  to={item.to}
+                  key={navItem.to}
+                  to={navItem.to}
+                  end={navItem.to === "/"}
                   className="relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors"
                 >
                   {isActive && (
@@ -89,7 +95,7 @@ const AppSidebar = () => {
                       transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
                     />
                   )}
-                  <item.icon
+                  <navItem.icon
                     className={`h-4 w-4 relative z-10 transition-colors ${
                       isActive ? "text-primary" : "text-muted-foreground"
                     }`}
@@ -99,7 +105,7 @@ const AppSidebar = () => {
                       isActive ? "text-foreground font-semibold" : "text-muted-foreground"
                     }`}
                   >
-                    {item.label}
+                    {navItem.label}
                   </span>
                 </NavLink>
               );

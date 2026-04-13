@@ -16,6 +16,7 @@ import StudyHistory from "./pages/StudyHistory";
 import Flashcards from "./pages/Flashcards";
 import Quiz from "./pages/Quiz";
 import Bookmarks from "./pages/Bookmarks";
+import Planner from "./pages/Planner";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -28,7 +29,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="h-10 w-10 rounded-xl gradient-primary flex items-center justify-center animate-pulse">
-          <span className="text-primary-foreground text-lg">✨</span>
+          <span className="text-primary-foreground text-lg">☕</span>
         </div>
       </div>
     );
@@ -73,6 +74,7 @@ const App = () => (
                 <Route path="/flashcards" element={<Flashcards />} />
                 <Route path="/quiz" element={<Quiz />} />
                 <Route path="/bookmarks" element={<Bookmarks />} />
+                <Route path="/planner" element={<Planner />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
