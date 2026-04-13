@@ -1,11 +1,12 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, FileText, CheckCircle2, Sparkles, BookOpen, FlaskConical, X, AlertCircle } from "lucide-react";
+import { Upload, FileText, CheckCircle2, Sparkles, BookOpen, FlaskConical, X, AlertCircle, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { analyzeDocument } from "@/services/ai";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 interface UploadedFile {
   name: string;
@@ -20,6 +21,7 @@ interface UploadedFile {
 
 const UploadNotes = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
 
@@ -30,7 +32,6 @@ const UploadNotes = () => {
     setFiles((prev) => [...prev, { name, size, status: "uploading" }]);
 
     try {
-      // Upload to storage
       const filePath = `${user!.id}/${Date.now()}_${name}`;
       const { error: uploadError } = await supabase.storage
         .from("documents")
@@ -38,7 +39,6 @@ const UploadNotes = () => {
 
       if (uploadError) throw uploadError;
 
-      // Create document record
       const { data: doc, error: docError } = await supabase
         .from("documents")
         .insert({
@@ -56,11 +56,9 @@ const UploadNotes = () => {
         prev.map((f) => (f.name === name ? { ...f, status: "processing" } : f))
       );
 
-      // Extract text and analyze
       const text = await file.text();
       const analysis = await analyzeDocument(text, name);
 
-      // Update document with analysis
       await supabase
         .from("documents")
         .update({
@@ -113,6 +111,10 @@ const UploadNotes = () => {
 
   const removeFile = (name: string) => {
     setFiles((prev) => prev.filter((f) => f.name !== name));
+  };
+
+  const studyTopic = (topic: string) => {
+    navigate(`/study/${encodeURIComponent(topic)}`);
   };
 
   return (
@@ -171,7 +173,11 @@ const UploadNotes = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {f.status === "uploading" && <span className="text-xs text-muted-foreground animate-pulse">Uploading...</span>}
+                {f.status === "uploading" && (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Uploading...
+                  </span>
+                )}
                 {f.status === "processing" && (
                   <span className="flex items-center gap-1 text-xs text-primary font-medium">
                     <Sparkles className="h-3 w-3 animate-spin" /> Analyzing with AI...
@@ -210,7 +216,14 @@ const UploadNotes = () => {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {f.topics.map((t) => (
-                        <span key={t} className="text-xs font-medium px-3 py-1.5 rounded-full bg-accent text-accent-foreground border border-primary/10">{t}</span>
+                        <button
+                          key={t}
+                          onClick={() => studyTopic(t)}
+                          className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full bg-accent text-accent-foreground border border-primary/10 hover:bg-primary hover:text-primary-foreground transition-colors group"
+                        >
+                          {t}
+                          <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -223,6 +236,23 @@ const UploadNotes = () => {
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">AI Summary</p>
                     </div>
                     <p className="text-sm text-foreground leading-relaxed bg-accent/50 rounded-xl p-3">{f.summary}</p>
+                  </div>
+                )}
+
+                {f.key_points && f.key_points.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <BookOpen className="h-3.5 w-3.5 text-primary" />
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Key Points</p>
+                    </div>
+                    <ul className="space-y-1.5">
+                      {f.key_points.map((kp, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-foreground">
+                          <span className="text-primary mt-0.5">•</span>
+                          {kp}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
 
@@ -240,7 +270,12 @@ const UploadNotes = () => {
                   </div>
                 )}
 
-                <Button variant="gradient" size="sm" className="rounded-full px-5 w-full">
+                <Button
+                  variant="gradient"
+                  size="sm"
+                  className="rounded-full px-5 w-full"
+                  onClick={() => f.topics?.[0] && studyTopic(f.topics[0])}
+                >
                   Start Studying These Topics
                 </Button>
               </motion.div>
