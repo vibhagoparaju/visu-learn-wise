@@ -228,7 +228,7 @@ const Study = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <VisualExplanation content={msg.content} />
+              <VisualExplanation content={msg.content} topic={urlTopic ? decodeURIComponent(urlTopic) : undefined} />
             </motion.div>
           ) : viewMode === "retain" && isComplete ? (
             <motion.div
