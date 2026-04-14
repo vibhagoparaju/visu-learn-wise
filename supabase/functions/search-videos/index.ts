@@ -26,30 +26,27 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const prompt = `You are an expert educational video curator. For the topic "${topic}", suggest exactly 3 high-quality YouTube videos that best explain this concept to students.
+    const prompt = `You are an expert educational video curator. For the topic "${topic}", suggest exactly 3 high-quality YouTube videos that best explain this concept.
 
-${explanation ? `Context about the topic: ${explanation.slice(0, 300)}` : ""}
+${explanation ? `Context: ${explanation.slice(0, 300)}` : ""}
 
-IMPORTANT RULES:
-- Suggest videos from REAL, well-known educational YouTube channels
-- Prioritize these trusted channels (pick the most relevant ones):
-  * Khan Academy, 3Blue1Brown, CrashCourse, Organic Chemistry Tutor
-  * Physics Wallah, Vedantu, Unacademy, BYJU'S (for Indian curriculum)
-  * Professor Dave Explains, TED-Ed, Kurzgesagt, MIT OpenCourseWare
-  * Numberphile, Veritasium, SmarterEveryDay, MinutePhysics
-- The "searchQuery" must be a realistic YouTube search string that would actually find this video
-- Include the channel name in the searchQuery for accuracy (e.g., "photosynthesis Khan Academy")
-- Estimate realistic video durations
-- Key points should reflect what the video actually covers
+CRITICAL RULES:
+- You MUST provide the actual YouTube video ID for each video in the "videoId" field
+- The videoId should be a real 11-character YouTube video ID (e.g., "dQw4w9WgXcQ")
+- Only suggest videos from well-known educational channels that you're confident exist
+- Prioritize: Khan Academy, 3Blue1Brown, CrashCourse, Organic Chemistry Tutor, Physics Wallah, Vedantu, Professor Dave Explains, TED-Ed, Kurzgesagt, MIT OpenCourseWare
+- Also provide a searchQuery as fallback
+- If you're not confident about a specific videoId, set it to null
 
 Return ONLY a JSON array:
 [
   {
-    "title": "Descriptive video title",
+    "title": "Video title",
     "channel": "Channel Name",
-    "searchQuery": "specific search query with channel name",
+    "videoId": "dQw4w9WgXcQ or null",
+    "searchQuery": "fallback YouTube search query",
     "duration": "12:30",
-    "keyPoints": ["key concept 1", "key concept 2", "key concept 3"]
+    "keyPoints": ["point 1", "point 2", "point 3"]
   }
 ]
 
@@ -66,7 +63,7 @@ Return ONLY valid JSON, no markdown.`;
         body: JSON.stringify({
           model: "google/gemini-3-flash-preview",
           messages: [
-            { role: "system", content: "You are a helpful educational video curator. Suggest real, findable YouTube videos from well-known channels. Return only valid JSON." },
+            { role: "system", content: "You are a helpful educational video curator. Return only valid JSON. For videoId, provide real YouTube video IDs when you're confident they exist, otherwise use null." },
             { role: "user", content: prompt },
           ],
         }),
@@ -107,8 +104,16 @@ Return ONLY valid JSON, no markdown.`;
 
     const videos = JSON.parse(jsonMatch[0]);
 
+    // Clean up videoId — ensure it looks like a valid YouTube ID
+    const cleaned = videos.map((v: any) => ({
+      ...v,
+      videoId: v.videoId && typeof v.videoId === "string" && /^[a-zA-Z0-9_-]{11}$/.test(v.videoId)
+        ? v.videoId
+        : null,
+    }));
+
     return new Response(
-      JSON.stringify({ videos }),
+      JSON.stringify({ videos: cleaned }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
