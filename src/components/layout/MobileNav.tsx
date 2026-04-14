@@ -1,12 +1,12 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { LayoutDashboard, BookOpen, Upload, Layers, BarChart3, Coffee } from "lucide-react";
+import { LayoutDashboard, BookOpen, Library, Layers, BarChart3, Coffee } from "lucide-react";
 import GlobalSearch from "@/components/GlobalSearch";
 
 const items = [
   { to: "/", icon: LayoutDashboard, label: "Home" },
   { to: "/study", icon: BookOpen, label: "Study" },
-  { to: "/upload", icon: Upload, label: "Upload" },
+  { to: "/syllabus", icon: Library, label: "Syllabus" },
   { to: "/flashcards", icon: Layers, label: "Cards" },
   { to: "/progress", icon: BarChart3, label: "Progress" },
 ];
