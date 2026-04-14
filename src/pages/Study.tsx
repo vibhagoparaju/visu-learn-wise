@@ -168,13 +168,57 @@ const Study = () => {
         mode: mode === "teachback" ? "teachback" : mode === "quiz" ? "quiz" : mode === "lazy" ? "lazy" : "chat",
         difficulty,
         onDelta: upsertAssistant,
-        onDone: () => {
+        onDone: async () => {
           setMessages((prev) =>
             prev.map((m) =>
               m.id === "streaming" ? { ...m, id: Date.now().toString() } : m
             )
           );
           setIsLoading(false);
+
+          // Track study progress
+          if (user && assistantContent.length > 50) {
+            const topicName = urlTopic ? decodeURIComponent(urlTopic) : userContent.replace(/^\[(.*?)\]\s*/, "").slice(0, 100);
+            try {
+              const { data: existing } = await supabase
+                .from("study_progress")
+                .select("id, questions_attempted, questions_correct, mastery_pct")
+                .eq("user_id", user.id)
+                .eq("topic", topicName)
+                .maybeSingle();
+
+              const isQuiz = mode === "quiz" || mode === "teachback";
+              const attempted = (existing?.questions_attempted || 0) + (isQuiz ? 1 : 0);
+              const correct = (existing?.questions_correct || 0);
+              const newMastery = Math.min(100, (existing?.mastery_pct || 0) + (isQuiz ? 8 : 5));
+              const strength = newMastery >= 75 ? "strong" : newMastery >= 40 ? "moderate" : newMastery > 0 ? "weak" : "not-started";
+
+              if (existing) {
+                await supabase
+                  .from("study_progress")
+                  .update({
+                    mastery_pct: newMastery,
+                    strength,
+                    questions_attempted: attempted,
+                    questions_correct: correct,
+                    last_studied_at: new Date().toISOString(),
+                  })
+                  .eq("id", existing.id);
+              } else {
+                await supabase.from("study_progress").insert({
+                  user_id: user.id,
+                  topic: topicName,
+                  mastery_pct: isQuiz ? 8 : 5,
+                  strength: "weak",
+                  questions_attempted: isQuiz ? 1 : 0,
+                  questions_correct: 0,
+                  last_studied_at: new Date().toISOString(),
+                });
+              }
+            } catch (e) {
+              console.error("Progress tracking error:", e);
+            }
+          }
 
           if (profile?.voice_enabled && assistantContent) {
             speak(assistantContent);
