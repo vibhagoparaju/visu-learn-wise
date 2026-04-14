@@ -97,13 +97,67 @@ serve(async (req) => {
       );
     }
 
+    // Build a topic-specific search query using AI
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    let searchQueries: string[] = [];
+
+    if (LOVABLE_API_KEY) {
+      try {
+        const queryResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash-lite",
+            messages: [
+              { role: "system", content: "Return ONLY a JSON array of 3 specific YouTube search queries. No markdown, no explanation." },
+              {
+                role: "user",
+                content: `Generate 3 specific YouTube search queries to find the best educational videos about: "${topic}"${explanation ? `\nContext: ${explanation.slice(0, 300)}` : ""}\n\nMake queries specific to the subtopic, not generic. Include terms like the subject area, specific concept names, and "explained" or "tutorial".\nExample for "Quadratic Formula": ["quadratic formula derivation explained","solving quadratic equations step by step tutorial","quadratic formula examples and practice"]`,
+              },
+            ],
+          }),
+        });
+        if (queryResp.ok) {
+          const qData = await queryResp.json();
+          const qContent = qData.choices?.[0]?.message?.content || "";
+          const qMatch = qContent.match(/\[[\s\S]*?\]/);
+          if (qMatch) {
+            searchQueries = JSON.parse(qMatch[0]).filter((q: any) => typeof q === "string").slice(0, 3);
+          }
+        }
+      } catch (e) {
+        console.error("Query generation error:", e);
+      }
+    }
+
+    // Fallback to basic query if AI didn't produce results
+    if (searchQueries.length === 0) {
+      searchQueries = [`${topic} explained tutorial`];
+    }
+
     const YOUTUBE_API_KEY = Deno.env.get("YOUTUBE_API_KEY");
 
     if (YOUTUBE_API_KEY) {
-      // Use real YouTube Data API
+      // Use real YouTube Data API with topic-specific queries
       try {
-        const searchQuery = `${topic} explained educational`;
-        const videos = await searchYouTube(searchQuery, YOUTUBE_API_KEY);
+        let allVideos: YouTubeVideo[] = [];
+        const seenIds = new Set<string>();
+
+        for (const query of searchQueries) {
+          const results = await searchYouTube(query, YOUTUBE_API_KEY);
+          for (const v of results) {
+            if (!seenIds.has(v.videoId)) {
+              seenIds.add(v.videoId);
+              allVideos.push({ ...v, searchQuery: query });
+            }
+          }
+          if (allVideos.length >= 5) break;
+        }
+
+        const videos = allVideos.slice(0, 5);
 
         if (videos.length > 0) {
           // Optionally enrich with AI key points
@@ -157,7 +211,6 @@ serve(async (req) => {
     }
 
     // Fallback: AI-generated suggestions
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("No API keys configured");
     }
