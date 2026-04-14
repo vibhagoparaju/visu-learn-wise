@@ -219,6 +219,8 @@ const Study = () => {
               console.error("Progress tracking error:", e);
             }
           }
+
+          if (profile?.voice_enabled && assistantContent) {
             speak(assistantContent);
           }
         },
