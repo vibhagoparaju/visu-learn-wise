@@ -8,8 +8,6 @@ import {
   ArrowLeft,
   Loader2,
   Search,
-  Sparkles,
-  ScrollText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,6 +18,14 @@ interface Subject {
   name: string;
   icon: string;
   topicCount: number;
+}
+
+interface Chapter {
+  number: number;
+  name: string;
+  description: string;
+  topicCount: number;
+  difficulty: "beginner" | "intermediate" | "advanced";
 }
 
 interface Topic {
@@ -38,7 +44,7 @@ const boards = [
   { id: "classical", name: "Classical Learning", desc: "Traditional texts & wisdom", icon: "📜" },
 ];
 
-const grades: Record<string, string[]> = {
+const gradesByBoard: Record<string, string[]> = {
   cbse: ["Class 6", "Class 7", "Class 8", "Class 9", "Class 10", "Class 11", "Class 12"],
   icse: ["Class 6", "Class 7", "Class 8", "Class 9", "Class 10", "Class 11", "Class 12"],
   state: ["Class 6", "Class 7", "Class 8", "Class 9", "Class 10", "Class 11", "Class 12"],
@@ -70,7 +76,7 @@ const difficultyColors: Record<string, string> = {
   advanced: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
-type Step = "board" | "grade" | "subject" | "topic";
+type Step = "board" | "grade" | "subject" | "chapter" | "topic";
 
 const Syllabus = () => {
   const navigate = useNavigate();
@@ -80,11 +86,12 @@ const Syllabus = () => {
   const [selectedGrade, setSelectedGrade] = useState(profile?.selected_grade || "");
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState("");
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [selectedChapter, setSelectedChapter] = useState("");
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // If user has saved board/grade, skip to subjects
   useEffect(() => {
     if (profile?.selected_board && profile?.selected_grade) {
       setSelectedBoard(profile.selected_board);
@@ -103,24 +110,27 @@ const Syllabus = () => {
     refreshProfile();
   };
 
+  const fetchData = async (body: Record<string, string>) => {
+    const resp = await fetch(SYLLABUS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || "Failed");
+    return resp.json();
+  };
+
   const fetchSubjects = async (board: string, grade: string) => {
     if (board === "classical") {
       setSubjects(classicalSubjects);
       return;
     }
-
     setLoading(true);
     try {
-      const resp = await fetch(SYLLABUS_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ board, grade }),
-      });
-      if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || "Failed");
-      const data = await resp.json();
+      const data = await fetchData({ board, grade });
       setSubjects(data.subjects || []);
     } catch (e: any) {
       toast.error(e.message || "Failed to load subjects");
@@ -129,19 +139,22 @@ const Syllabus = () => {
     }
   };
 
-  const fetchTopics = async (subject: string) => {
+  const fetchChapters = async (subject: string) => {
     setLoading(true);
     try {
-      const resp = await fetch(SYLLABUS_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ board: selectedBoard, grade: selectedGrade, subject }),
-      });
-      if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || "Failed");
-      const data = await resp.json();
+      const data = await fetchData({ board: selectedBoard, grade: selectedGrade, subject });
+      setChapters(data.chapters || []);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to load chapters");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTopics = async (chapter: string) => {
+    setLoading(true);
+    try {
+      const data = await fetchData({ board: selectedBoard, grade: selectedGrade, subject: selectedSubject, chapter });
       setTopics(data.topics || []);
     } catch (e: any) {
       toast.error(e.message || "Failed to load topics");
@@ -164,8 +177,14 @@ const Syllabus = () => {
 
   const selectSubject = (subject: string) => {
     setSelectedSubject(subject);
+    setStep("chapter");
+    fetchChapters(subject);
+  };
+
+  const selectChapter = (chapter: string) => {
+    setSelectedChapter(chapter);
     setStep("topic");
-    fetchTopics(subject);
+    fetchTopics(chapter);
   };
 
   const studyTopic = (topicName: string) => {
@@ -173,19 +192,56 @@ const Syllabus = () => {
   };
 
   const goBack = () => {
-    if (step === "topic") { setStep("subject"); setTopics([]); }
+    setSearchQuery("");
+    if (step === "topic") { setStep("chapter"); setTopics([]); }
+    else if (step === "chapter") { setStep("subject"); setChapters([]); }
     else if (step === "subject") { setStep("grade"); setSubjects([]); }
     else if (step === "grade") setStep("board");
   };
 
-  const filteredTopics = topics.filter((t) =>
-    t.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const boardInfo = boards.find((b) => b.id === selectedBoard);
+
+  const getTitle = () => {
+    switch (step) {
+      case "board": return "Choose Your Board";
+      case "grade": return boardInfo?.name || "";
+      case "subject": return `${boardInfo?.name} · ${selectedGrade}`;
+      case "chapter": return selectedSubject;
+      case "topic": return selectedChapter;
+    }
+  };
+
+  const getSubtitle = () => {
+    switch (step) {
+      case "board": return "Select your education board or learning path";
+      case "grade": return "Select your class or level";
+      case "subject": return "Choose a subject to explore";
+      case "chapter": return `${boardInfo?.name} · ${selectedGrade} · Chapters`;
+      case "topic": return `${selectedSubject} · Subtopics`;
+    }
+  };
+
+  const getLoadingText = () => {
+    switch (step) {
+      case "subject": return "Generating syllabus…";
+      case "chapter": return "Loading chapters…";
+      case "topic": return "Loading subtopics…";
+      default: return "Loading…";
+    }
+  };
+
+  // Filtering
   const filteredSubjects = subjects.filter((s) =>
     s.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const filteredChapters = chapters.filter((c) =>
+    c.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const filteredTopics = topics.filter((t) =>
+    t.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-  const boardInfo = boards.find((b) => b.id === selectedBoard);
+  const showSearch = ["subject", "chapter", "topic"].includes(step) && !loading;
 
   return (
     <motion.div
@@ -202,29 +258,19 @@ const Syllabus = () => {
           </Button>
         )}
         <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            {step === "board" && "Choose Your Board"}
-            {step === "grade" && boardInfo?.name}
-            {step === "subject" && `${boardInfo?.name} · ${selectedGrade}`}
-            {step === "topic" && selectedSubject}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {step === "board" && "Select your education board or learning path"}
-            {step === "grade" && "Select your class or level"}
-            {step === "subject" && "Choose a subject to explore"}
-            {step === "topic" && "Select a topic to start learning"}
-          </p>
+          <h1 className="text-2xl font-bold text-foreground">{getTitle()}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{getSubtitle()}</p>
         </div>
       </motion.div>
 
-      {/* Search (for subject & topic steps) */}
-      {(step === "subject" || step === "topic") && !loading && (
+      {/* Search */}
+      {showSearch && (
         <motion.div variants={item} className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={step === "subject" ? "Search subjects..." : "Search topics..."}
+            placeholder={`Search ${step === "subject" ? "subjects" : step === "chapter" ? "chapters" : "topics"}...`}
             className="w-full bg-card rounded-xl pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground shadow-card focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </motion.div>
@@ -236,23 +282,14 @@ const Syllabus = () => {
           <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
             <Loader2 className="h-5 w-5 text-primary animate-spin" />
           </div>
-          <p className="text-sm text-muted-foreground animate-pulse">
-            {step === "subject" ? "Generating syllabus…" : "Loading topics…"}
-          </p>
+          <p className="text-sm text-muted-foreground animate-pulse">{getLoadingText()}</p>
         </div>
       )}
 
-      {/* Board Selection */}
       <AnimatePresence mode="wait">
+        {/* Board Selection */}
         {step === "board" && (
-          <motion.div
-            key="board"
-            variants={container}
-            initial="hidden"
-            animate="show"
-            exit={{ opacity: 0 }}
-            className="grid gap-3"
-          >
+          <motion.div key="board" variants={container} initial="hidden" animate="show" exit={{ opacity: 0 }} className="grid gap-3">
             {boards.map((board) => (
               <motion.button
                 key={board.id}
@@ -262,7 +299,7 @@ const Syllabus = () => {
                 className="flex items-center gap-4 bg-card rounded-2xl p-4 shadow-card border border-border hover:border-primary/30 transition-all text-left"
               >
                 <div className="h-12 w-12 rounded-xl bg-accent flex items-center justify-center text-2xl flex-shrink-0">
-                  {board.icon || (board.id === "classical" ? "📜" : <GraduationCap className="h-5 w-5 text-primary" />)}
+                  {board.icon || <GraduationCap className="h-5 w-5 text-primary" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-foreground">{board.name}</p>
@@ -276,15 +313,8 @@ const Syllabus = () => {
 
         {/* Grade Selection */}
         {step === "grade" && (
-          <motion.div
-            key="grade"
-            variants={container}
-            initial="hidden"
-            animate="show"
-            exit={{ opacity: 0 }}
-            className="grid grid-cols-2 sm:grid-cols-3 gap-3"
-          >
-            {(grades[selectedBoard] || []).map((grade) => (
+          <motion.div key="grade" variants={container} initial="hidden" animate="show" exit={{ opacity: 0 }} className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {(gradesByBoard[selectedBoard] || []).map((grade) => (
               <motion.button
                 key={grade}
                 variants={item}
@@ -300,14 +330,7 @@ const Syllabus = () => {
 
         {/* Subject Selection */}
         {step === "subject" && !loading && (
-          <motion.div
-            key="subject"
-            variants={container}
-            initial="hidden"
-            animate="show"
-            exit={{ opacity: 0 }}
-            className="grid grid-cols-2 gap-3"
-          >
+          <motion.div key="subject" variants={container} initial="hidden" animate="show" exit={{ opacity: 0 }} className="grid grid-cols-2 gap-3">
             {filteredSubjects.map((subject) => (
               <motion.button
                 key={subject.name}
@@ -318,7 +341,37 @@ const Syllabus = () => {
               >
                 <span className="text-3xl">{subject.icon}</span>
                 <p className="text-sm font-semibold text-foreground text-center">{subject.name}</p>
-                <p className="text-xs text-muted-foreground">{subject.topicCount} topics</p>
+                <p className="text-xs text-muted-foreground">{subject.topicCount} chapters</p>
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
+
+        {/* Chapter Selection */}
+        {step === "chapter" && !loading && (
+          <motion.div key="chapter" variants={container} initial="hidden" animate="show" exit={{ opacity: 0 }} className="space-y-2">
+            {filteredChapters.map((ch) => (
+              <motion.button
+                key={ch.name}
+                variants={item}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => selectChapter(ch.name)}
+                className="w-full flex items-center gap-3 bg-card rounded-xl p-3.5 shadow-card border border-border hover:border-primary/30 transition-all text-left"
+              >
+                <div className="h-9 w-9 rounded-lg bg-accent flex items-center justify-center text-xs font-bold text-primary flex-shrink-0">
+                  {ch.number}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{ch.name}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-1">{ch.description}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${difficultyColors[ch.difficulty] || ""}`}>
+                    {ch.difficulty}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">{ch.topicCount} topics</span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
               </motion.button>
             ))}
           </motion.div>
@@ -326,14 +379,7 @@ const Syllabus = () => {
 
         {/* Topic Selection */}
         {step === "topic" && !loading && (
-          <motion.div
-            key="topic"
-            variants={container}
-            initial="hidden"
-            animate="show"
-            exit={{ opacity: 0 }}
-            className="space-y-2"
-          >
+          <motion.div key="topic" variants={container} initial="hidden" animate="show" exit={{ opacity: 0 }} className="space-y-2">
             {filteredTopics.map((topic, idx) => (
               <motion.button
                 key={topic.name}
