@@ -41,7 +41,7 @@ const navGroups = [
       { to: "/progress", icon: BarChart3, label: "Progress" },
       { to: "/planner", icon: CalendarDays, label: "Planner" },
       { to: "/history", icon: Clock, label: "History" },
-      { to: "/bookmarks", icon: Bookmark, label: "Bookmarks" },
+      
       { to: "/rewards", icon: Trophy, label: "Rewards" },
     ],
   },
