@@ -26,22 +26,34 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const prompt = `You are an educational video curator. For the topic "${topic}", suggest exactly 3 high-quality educational YouTube videos that would help a student understand this concept.
+    const prompt = `You are an expert educational video curator. For the topic "${topic}", suggest exactly 3 high-quality YouTube videos that best explain this concept to students.
 
-${explanation ? `Context: ${explanation.slice(0, 300)}` : ""}
+${explanation ? `Context about the topic: ${explanation.slice(0, 300)}` : ""}
 
-Return ONLY a JSON array with this structure:
+IMPORTANT RULES:
+- Suggest videos from REAL, well-known educational YouTube channels
+- Prioritize these trusted channels (pick the most relevant ones):
+  * Khan Academy, 3Blue1Brown, CrashCourse, Organic Chemistry Tutor
+  * Physics Wallah, Vedantu, Unacademy, BYJU'S (for Indian curriculum)
+  * Professor Dave Explains, TED-Ed, Kurzgesagt, MIT OpenCourseWare
+  * Numberphile, Veritasium, SmarterEveryDay, MinutePhysics
+- The "searchQuery" must be a realistic YouTube search string that would actually find this video
+- Include the channel name in the searchQuery for accuracy (e.g., "photosynthesis Khan Academy")
+- Estimate realistic video durations
+- Key points should reflect what the video actually covers
+
+Return ONLY a JSON array:
 [
   {
-    "title": "Video title",
-    "channel": "Channel name",
-    "searchQuery": "exact YouTube search query to find this video",
-    "duration": "estimated duration like 10:30",
-    "keyPoints": ["point 1", "point 2", "point 3"]
+    "title": "Descriptive video title",
+    "channel": "Channel Name",
+    "searchQuery": "specific search query with channel name",
+    "duration": "12:30",
+    "keyPoints": ["key concept 1", "key concept 2", "key concept 3"]
   }
 ]
 
-Suggest real, well-known educational channels like Khan Academy, 3Blue1Brown, CrashCourse, Organic Chemistry Tutor, etc. Return ONLY JSON, no markdown.`;
+Return ONLY valid JSON, no markdown.`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -54,7 +66,7 @@ Suggest real, well-known educational channels like Khan Academy, 3Blue1Brown, Cr
         body: JSON.stringify({
           model: "google/gemini-3-flash-preview",
           messages: [
-            { role: "system", content: "You are a helpful educational video curator. Return only valid JSON." },
+            { role: "system", content: "You are a helpful educational video curator. Suggest real, findable YouTube videos from well-known channels. Return only valid JSON." },
             { role: "user", content: prompt },
           ],
         }),

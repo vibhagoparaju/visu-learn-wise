@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { board, grade, subject } = await req.json();
+    const { board, grade, subject, chapter } = await req.json();
 
     if (!board || typeof board !== "string") {
       return new Response(
@@ -28,33 +28,79 @@ serve(async (req) => {
 
     let prompt: string;
 
-    if (subject) {
-      prompt = `You are an educational curriculum expert. Generate a list of topics for:
-Board/University: ${board}
+    if (chapter) {
+      // Level 3: Get subtopics for a specific chapter
+      prompt = `You are an expert curriculum designer with deep knowledge of the ${board} education system.
+
+Generate a detailed list of subtopics for:
+Board: ${board}
+Grade/Year: ${grade || "General"}
+Subject: ${subject}
+Chapter: ${chapter}
+
+IMPORTANT RULES:
+- List ALL subtopics that are actually taught in this chapter under the ${board} board for ${grade}
+- Use the EXACT topic names as they appear in official ${board} textbooks and syllabi
+- Order topics from foundational concepts to advanced applications
+- Include both theory topics and practical/numerical topics
+- Do NOT skip any important concept
+- Assign accurate difficulty levels based on student experience
+
+Return a JSON object:
+{
+  "topics": [
+    { "name": "Exact Subtopic Name", "description": "One clear sentence explaining what students learn", "difficulty": "beginner|intermediate|advanced" }
+  ]
+}
+
+Include 6-15 subtopics depending on the chapter size. Return ONLY valid JSON, no markdown.`;
+    } else if (subject) {
+      // Level 2: Get chapters for a specific subject
+      prompt = `You are an expert curriculum designer with deep knowledge of the ${board} education system.
+
+Generate the COMPLETE chapter list for:
+Board: ${board}
 Grade/Year: ${grade || "General"}
 Subject: ${subject}
 
-Return a JSON object with this exact structure:
+IMPORTANT RULES:
+- List ALL chapters exactly as they appear in the official ${board} ${grade} ${subject} textbook
+- Use EXACT chapter names from the official syllabus (e.g., for CBSE Class 10 Science: "Chemical Reactions and Equations", "Acids, Bases and Salts", etc.)
+- Maintain the EXACT order chapters appear in the textbook
+- Do NOT combine or skip chapters
+- Include the chapter number
+- For each chapter, provide a count of key subtopics it contains
+
+Return a JSON object:
 {
-  "topics": [
-    { "name": "Topic Name", "description": "One line description", "difficulty": "beginner|intermediate|advanced" }
+  "chapters": [
+    { "number": 1, "name": "Exact Chapter Name", "description": "Brief chapter summary", "topicCount": 8, "difficulty": "beginner|intermediate|advanced" }
   ]
 }
 
-Include 8-12 important topics ordered from foundational to advanced. Return ONLY the JSON, no markdown.`;
+Return ONLY valid JSON, no markdown.`;
     } else {
-      prompt = `You are an educational curriculum expert. Generate a list of subjects for:
-Board/University: ${board}
+      // Level 1: Get subjects
+      prompt = `You are an expert curriculum designer with deep knowledge of the ${board} education system.
+
+Generate the list of subjects for:
+Board: ${board}
 Grade/Year: ${grade || "General"}
 
-Return a JSON object with this exact structure:
+IMPORTANT RULES:
+- List ALL subjects that are officially part of the ${board} ${grade} curriculum
+- Use EXACT subject names as they appear in official ${board} documentation
+- Include both compulsory and common elective subjects
+- Provide accurate topic counts based on the actual number of chapters
+
+Return a JSON object:
 {
   "subjects": [
-    { "name": "Subject Name", "icon": "emoji", "topicCount": number }
+    { "name": "Exact Subject Name", "icon": "emoji", "topicCount": number }
   ]
 }
 
-Include 6-10 core subjects with realistic topic counts. Return ONLY the JSON, no markdown.`;
+Include 6-12 subjects. Return ONLY valid JSON, no markdown.`;
     }
 
     const response = await fetch(
@@ -68,7 +114,7 @@ Include 6-10 core subjects with realistic topic counts. Return ONLY the JSON, no
         body: JSON.stringify({
           model: "google/gemini-3-flash-preview",
           messages: [
-            { role: "system", content: "You are a curriculum expert. Return only valid JSON, no markdown code blocks." },
+            { role: "system", content: "You are an expert educational curriculum specialist. You have precise knowledge of Indian education boards (CBSE, ICSE, State Boards) and university syllabi. Always return accurate, complete, and well-structured syllabus data. Return only valid JSON, no markdown code blocks." },
             { role: "user", content: prompt },
           ],
         }),
@@ -99,7 +145,6 @@ Include 6-10 core subjects with realistic topic counts. Return ONLY the JSON, no
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
 
-    // Extract JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return new Response(
