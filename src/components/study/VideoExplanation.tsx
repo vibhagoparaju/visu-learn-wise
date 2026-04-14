@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 interface VideoSuggestion {
   title: string;
   channel: string;
-  videoId: string;
+  videoId: string | null;
+  thumbnail: string;
   searchQuery: string;
   duration: string;
   keyPoints: string[];
@@ -86,9 +87,14 @@ const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
   };
 
   const playVideo = (idx: number) => {
-    setPlayingIdx(idx);
-    setIframeLoading(true);
-    setIframeError(false);
+    const video = videos[idx];
+    if (video.videoId) {
+      setPlayingIdx(idx);
+      setIframeLoading(true);
+      setIframeError(false);
+    } else {
+      openYouTube(video);
+    }
   };
 
   const closePlayer = () => {
@@ -133,6 +139,8 @@ const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
     );
   }
 
+  const activeVideo = playingIdx !== null ? videos[playingIdx] : null;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -140,7 +148,7 @@ const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
       className="space-y-3"
     >
       {/* Embedded Video Player */}
-      {playingIdx !== null && videos[playingIdx] && (
+      {activeVideo && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -148,14 +156,14 @@ const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
         >
           <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b border-border">
             <p className="text-xs font-medium text-foreground truncate flex-1 mr-2">
-              {videos[playingIdx].title}
+              {activeVideo.title}
             </p>
             <div className="flex items-center gap-1.5">
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6 rounded-md"
-                onClick={() => openYouTube(videos[playingIdx])}
+                onClick={() => openYouTube(activeVideo)}
                 title="Open on YouTube"
               >
                 <ExternalLink className="h-3 w-3" />
@@ -185,7 +193,7 @@ const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => openYouTube(videos[playingIdx])}
+                  onClick={() => openYouTube(activeVideo)}
                   className="text-xs rounded-lg"
                 >
                   <ExternalLink className="h-3 w-3 mr-1" />
@@ -193,40 +201,18 @@ const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
                 </Button>
               </div>
             ) : (
-              (() => {
-                const embedUrl = getEmbedUrl(videos[playingIdx]);
-                if (!embedUrl) {
-                  return (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/80 gap-2">
-                      <AlertCircle className="h-6 w-6 text-muted-foreground" />
-                      <p className="text-xs text-muted-foreground">No embed available</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openYouTube(videos[playingIdx])}
-                        className="text-xs rounded-lg"
-                      >
-                        <ExternalLink className="h-3 w-3 mr-1" />
-                        Search on YouTube
-                      </Button>
-                    </div>
-                  );
-                }
-                return (
-                  <iframe
-                    className="absolute inset-0 w-full h-full"
-                    src={embedUrl}
-                    title={videos[playingIdx].title}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    onLoad={() => setIframeLoading(false)}
-                    onError={() => {
-                      setIframeLoading(false);
-                      setIframeError(true);
-                    }}
-                  />
-                );
-              })()
+              <iframe
+                className="absolute inset-0 w-full h-full"
+                src={getEmbedUrl(activeVideo)!}
+                title={activeVideo.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                onLoad={() => setIframeLoading(false)}
+                onError={() => {
+                  setIframeLoading(false);
+                  setIframeError(true);
+                }}
+              />
             )}
           </div>
         </motion.div>
@@ -239,17 +225,33 @@ const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: idx * 0.1 }}
-          onClick={() => video.videoId ? playVideo(idx) : openYouTube(video)}
-          className={`w-full text-left rounded-xl p-3.5 border transition-all group ${
+          onClick={() => playVideo(idx)}
+          className={`w-full text-left rounded-xl p-3 border transition-all group ${
             playingIdx === idx
               ? "bg-primary/5 border-primary/30"
               : "bg-muted/50 hover:bg-accent border-border hover:border-primary/30"
           }`}
         >
           <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0 group-hover:bg-destructive/20 transition-colors">
-              <Play className="h-4 w-4 text-destructive" />
-            </div>
+            {/* Thumbnail or Play Icon */}
+            {video.thumbnail ? (
+              <div className="relative h-16 w-28 rounded-lg overflow-hidden flex-shrink-0 bg-muted">
+                <img
+                  src={video.thumbnail}
+                  alt={video.title}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-black/20 flex items-center justify-center group-hover:bg-black/30 transition-colors">
+                  <Play className="h-5 w-5 text-white fill-white" />
+                </div>
+              </div>
+            ) : (
+              <div className="h-10 w-10 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0 group-hover:bg-destructive/20 transition-colors">
+                <Play className="h-4 w-4 text-destructive" />
+              </div>
+            )}
+
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-foreground line-clamp-2 group-hover:text-primary transition-colors">
                 {video.title}
@@ -261,12 +263,6 @@ const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
                   <Clock className="h-3 w-3" />
                   {video.duration}
                 </span>
-                {video.videoId && (
-                  <>
-                    <span className="text-muted-foreground">·</span>
-                    <span className="text-[10px] text-primary font-medium">▶ Play</span>
-                  </>
-                )}
               </div>
               {video.keyPoints?.length > 0 && (
                 <div className="mt-2 space-y-1">
@@ -279,10 +275,11 @@ const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
                 </div>
               )}
             </div>
+
             {video.videoId ? (
-              <Play className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary flex-shrink-0 mt-1" />
+              <span className="text-[10px] text-primary font-medium flex-shrink-0 mt-1">▶ Play</span>
             ) : (
-              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary flex-shrink-0 mt-1" />
+              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 mt-1" />
             )}
           </div>
         </motion.button>
