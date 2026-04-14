@@ -13,6 +13,7 @@ import {
   HelpCircle,
   Bookmark,
   CalendarDays,
+  Eye,
 } from "lucide-react";
 import GlobalSearch from "@/components/GlobalSearch";
 
@@ -22,6 +23,7 @@ const navGroups = [
     items: [
       { to: "/", icon: LayoutDashboard, label: "Dashboard" },
       { to: "/study", icon: BookOpen, label: "Study" },
+      { to: "/visual", icon: Eye, label: "Visual" },
       { to: "/upload", icon: Upload, label: "Upload" },
     ],
   },
