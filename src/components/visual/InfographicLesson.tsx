@@ -1,9 +1,23 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { FileImage, Loader2, Sparkles, BookOpen, Target, Lightbulb, CheckCircle2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  FileImage,
+  Loader2,
+  Sparkles,
+  BookOpen,
+  Target,
+  Lightbulb,
+  CheckCircle2,
+  Image as ImageIcon,
+  GitBranch,
+  LayoutGrid,
+  Paintbrush,
+  ArrowLeftRight,
+  Download,
+  RefreshCw,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { streamChat } from "@/services/ai";
-import ReactMarkdown from "react-markdown";
+import { toast } from "sonner";
 
 interface TopicData {
   topic: string;
@@ -16,59 +30,66 @@ interface Props {
   onStudyTopic: (topic: string) => void;
 }
 
-interface InfographicData {
+type VisualStyle = "diagram" | "flowchart" | "mindmap" | "illustration" | "comparison";
+
+const styleOptions: { id: VisualStyle; label: string; icon: any; desc: string }[] = [
+  { id: "diagram", label: "Diagram", icon: Target, desc: "Labeled diagrams" },
+  { id: "flowchart", label: "Flowchart", icon: GitBranch, desc: "Process flows" },
+  { id: "mindmap", label: "Mind Map", icon: LayoutGrid, desc: "Branching concepts" },
+  { id: "illustration", label: "Illustration", icon: Paintbrush, desc: "Visual explanation" },
+  { id: "comparison", label: "Comparison", icon: ArrowLeftRight, desc: "Side-by-side" },
+];
+
+interface GeneratedVisual {
   topic: string;
-  summary: string;
-  keyPoints: string[];
-  example: string;
-  difficulty: string;
+  style: VisualStyle;
+  imageUrl: string;
+  description: string;
 }
+
+const GENERATE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-visual`;
 
 const InfographicLesson = ({ topics, onStudyTopic }: Props) => {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
-  const [infographic, setInfographic] = useState<InfographicData | null>(null);
+  const [selectedStyle, setSelectedStyle] = useState<VisualStyle>("diagram");
   const [loading, setLoading] = useState(false);
-  const [rawContent, setRawContent] = useState("");
+  const [visuals, setVisuals] = useState<GeneratedVisual[]>([]);
+  const [activeVisual, setActiveVisual] = useState<GeneratedVisual | null>(null);
 
-  const generateInfographic = async (topic: string) => {
+  const generateVisual = async (topic: string) => {
     setSelectedTopic(topic);
     setLoading(true);
-    setRawContent("");
-    setInfographic(null);
+    setActiveVisual(null);
 
-    let result = "";
-    await streamChat({
-      messages: [
-        {
-          role: "user",
-          content: `Create a visual-friendly infographic summary for the topic "${topic}". Return ONLY a JSON object with these keys:
-- "summary": a 2-sentence overview
-- "keyPoints": array of exactly 4 short bullet points (max 12 words each)
-- "example": a real-world example in 1-2 sentences
-- "difficulty": one of "Beginner", "Intermediate", "Advanced"
-
-No markdown, no code blocks, just raw JSON.`,
+    try {
+      const resp = await fetch(GENERATE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-      ],
-      mode: "chat",
-      difficulty: "beginner",
-      onDelta: (d) => {
-        result += d;
-        setRawContent(result);
-      },
-      onDone: () => {
-        try {
-          const match = result.match(/\{[\s\S]*\}/);
-          if (!match) throw new Error("No JSON");
-          const parsed = JSON.parse(match[0]);
-          setInfographic({ topic, ...parsed });
-        } catch {
-          setInfographic(null);
-        }
-        setLoading(false);
-      },
-      onError: () => setLoading(false),
-    });
+        body: JSON.stringify({ topic, style: selectedStyle }),
+      });
+
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || `Error ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      const visual: GeneratedVisual = {
+        topic,
+        style: selectedStyle,
+        imageUrl: data.imageUrl,
+        description: data.description,
+      };
+      setActiveVisual(visual);
+      setVisuals((prev) => [visual, ...prev.filter((v) => !(v.topic === topic && v.style === selectedStyle))]);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate visual");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (topics.length === 0) {
@@ -76,7 +97,7 @@ No markdown, no code blocks, just raw JSON.`,
       <div className="text-center py-16">
         <FileImage className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
         <h3 className="text-lg font-semibold text-foreground mb-1">No topics available</h3>
-        <p className="text-sm text-muted-foreground">Study some topics first to generate infographics</p>
+        <p className="text-sm text-muted-foreground">Study some topics first to generate visual explanations</p>
       </div>
     );
   }
@@ -85,12 +106,12 @@ No markdown, no code blocks, just raw JSON.`,
     <div className="space-y-6">
       {/* Topic selector */}
       <div>
-        <h3 className="text-sm font-semibold text-foreground mb-3">Choose a topic to visualize</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-3">Choose a topic</h3>
         <div className="flex flex-wrap gap-2">
           {topics.map((t) => (
             <button
               key={t.topic}
-              onClick={() => generateInfographic(t.topic)}
+              onClick={() => setSelectedTopic(t.topic)}
               disabled={loading}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                 selectedTopic === t.topic
@@ -104,91 +125,157 @@ No markdown, no code blocks, just raw JSON.`,
         </div>
       </div>
 
-      {/* Loading state */}
-      {loading && (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">Generating infographic...</p>
+      {/* Style selector */}
+      {selectedTopic && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <h3 className="text-sm font-semibold text-foreground mb-3">Visual style</h3>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {styleOptions.map((s) => {
+              const Icon = s.icon;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setSelectedStyle(s.id)}
+                  disabled={loading}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+                    selectedStyle === s.id
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-card border border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {s.label}
+                </button>
+              );
+            })}
           </div>
-        </div>
+
+          {/* Generate button */}
+          <Button
+            onClick={() => generateVisual(selectedTopic)}
+            disabled={loading}
+            className="mt-4 rounded-xl"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <ImageIcon className="h-4 w-4 mr-2" />
+                Generate Visual Explanation
+              </>
+            )}
+          </Button>
+        </motion.div>
       )}
 
-      {/* Infographic display */}
-      {infographic && !loading && (
+      {/* Loading state */}
+      {loading && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="bg-card border border-border rounded-2xl p-8 text-center"
+        >
+          <div className="relative mx-auto w-16 h-16 mb-4">
+            <div className="absolute inset-0 rounded-2xl gradient-primary opacity-20 animate-pulse" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Sparkles className="h-7 w-7 text-primary animate-pulse" />
+            </div>
+          </div>
+          <p className="text-sm font-medium text-foreground">Creating your visual explanation...</p>
+          <p className="text-xs text-muted-foreground mt-1">AI is generating a {selectedStyle} for "{selectedTopic}"</p>
+        </motion.div>
+      )}
+
+      {/* Active Visual */}
+      {activeVisual && !loading && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-gradient-to-br from-card to-accent/30 border border-border rounded-2xl overflow-hidden"
+          className="bg-card border border-border rounded-2xl overflow-hidden"
         >
           {/* Header */}
-          <div className="bg-primary/10 px-6 py-5 border-b border-border/50">
+          <div className="px-5 py-4 border-b border-border/50 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl gradient-primary flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-primary-foreground" />
+              <div className="h-9 w-9 rounded-xl gradient-primary flex items-center justify-center">
+                <Sparkles className="h-4 w-4 text-primary-foreground" />
               </div>
               <div>
-                <h2 className="text-lg font-bold font-display text-foreground">{infographic.topic}</h2>
-                <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                  {infographic.difficulty}
-                </span>
+                <h3 className="text-sm font-semibold text-foreground">{activeVisual.topic}</h3>
+                <p className="text-xs text-muted-foreground capitalize">{activeVisual.style} view</p>
               </div>
             </div>
-          </div>
-
-          {/* Summary */}
-          <div className="px-6 py-4 border-b border-border/30">
-            <div className="flex items-start gap-3">
-              <BookOpen className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-foreground leading-relaxed">{infographic.summary}</p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-lg"
+                onClick={() => generateVisual(activeVisual.topic)}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
             </div>
           </div>
 
-          {/* Key Points */}
-          <div className="px-6 py-4 border-b border-border/30">
-            <div className="flex items-center gap-2 mb-3">
-              <Target className="h-4 w-4 text-primary" />
-              <h4 className="text-sm font-semibold text-foreground">Key Points</h4>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {infographic.keyPoints.map((point, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="flex items-start gap-2 bg-background/50 rounded-lg p-3"
-                >
-                  <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span className="text-sm text-foreground">{point}</span>
-                </motion.div>
-              ))}
-            </div>
+          {/* Image */}
+          <div className="p-4">
+            <img
+              src={activeVisual.imageUrl}
+              alt={`Visual explanation of ${activeVisual.topic}`}
+              className="w-full rounded-xl border border-border/50 shadow-sm"
+            />
           </div>
 
-          {/* Example */}
-          <div className="px-6 py-4 border-b border-border/30">
-            <div className="flex items-start gap-3">
-              <Lightbulb className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
-              <div>
-                <h4 className="text-sm font-semibold text-foreground mb-1">Real-World Example</h4>
-                <p className="text-sm text-muted-foreground">{infographic.example}</p>
-              </div>
+          {/* Description */}
+          {activeVisual.description && (
+            <div className="px-5 py-3 border-t border-border/30">
+              <p className="text-sm text-muted-foreground leading-relaxed">{activeVisual.description}</p>
             </div>
-          </div>
+          )}
 
           {/* CTA */}
-          <div className="px-6 py-4">
+          <div className="px-5 py-4 border-t border-border/30">
             <Button
-              onClick={() => onStudyTopic(infographic.topic)}
+              onClick={() => onStudyTopic(activeVisual.topic)}
               className="w-full rounded-xl"
               variant="default"
             >
               <BookOpen className="h-4 w-4 mr-2" />
-              Deep dive into {infographic.topic}
+              Study {activeVisual.topic} in depth
             </Button>
           </div>
         </motion.div>
+      )}
+
+      {/* History of generated visuals */}
+      {visuals.length > 1 && (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-3">Previously Generated</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {visuals.slice(1, 7).map((v, i) => (
+              <motion.button
+                key={`${v.topic}-${v.style}-${i}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                onClick={() => setActiveVisual(v)}
+                className="text-left rounded-xl border border-border overflow-hidden hover:shadow-md transition-all bg-card group"
+              >
+                <img
+                  src={v.imageUrl}
+                  alt={v.topic}
+                  className="w-full h-24 object-cover"
+                />
+                <div className="p-2">
+                  <p className="text-xs font-medium text-foreground truncate">{v.topic}</p>
+                  <p className="text-[10px] text-muted-foreground capitalize">{v.style}</p>
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
