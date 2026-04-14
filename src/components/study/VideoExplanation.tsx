@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Play, ExternalLink, Loader2, AlertCircle, RefreshCw, Clock, CheckCircle2 } from "lucide-react";
+import { Play, ExternalLink, Loader2, AlertCircle, RefreshCw, Clock, CheckCircle2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface VideoSuggestion {
   title: string;
   channel: string;
+  videoId: string;
   searchQuery: string;
   duration: string;
   keyPoints: string[];
@@ -23,11 +24,15 @@ const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasRequested, setHasRequested] = useState(false);
+  const [playingIdx, setPlayingIdx] = useState<number | null>(null);
+  const [iframeLoading, setIframeLoading] = useState(false);
+  const [iframeError, setIframeError] = useState(false);
 
   const fetchVideos = async () => {
     setLoading(true);
     setError(null);
     setHasRequested(true);
+    setPlayingIdx(null);
 
     try {
       const resp = await fetch(VIDEO_URL, {
@@ -62,11 +67,34 @@ const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
     }
   }, []);
 
-  const openYouTube = (query: string) => {
-    window.open(
-      `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`,
-      "_blank"
-    );
+  const getEmbedUrl = (video: VideoSuggestion) => {
+    if (video.videoId) {
+      return `https://www.youtube-nocookie.com/embed/${video.videoId}?rel=0&modestbranding=1`;
+    }
+    return null;
+  };
+
+  const openYouTube = (video: VideoSuggestion) => {
+    if (video.videoId) {
+      window.open(`https://www.youtube.com/watch?v=${video.videoId}`, "_blank");
+    } else {
+      window.open(
+        `https://www.youtube.com/results?search_query=${encodeURIComponent(video.searchQuery)}`,
+        "_blank"
+      );
+    }
+  };
+
+  const playVideo = (idx: number) => {
+    setPlayingIdx(idx);
+    setIframeLoading(true);
+    setIframeError(false);
+  };
+
+  const closePlayer = () => {
+    setPlayingIdx(null);
+    setIframeLoading(false);
+    setIframeError(false);
   };
 
   if (!hasRequested || loading) {
@@ -111,14 +139,112 @@ const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-3"
     >
+      {/* Embedded Video Player */}
+      {playingIdx !== null && videos[playingIdx] && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="rounded-xl overflow-hidden border border-border bg-card shadow-card"
+        >
+          <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b border-border">
+            <p className="text-xs font-medium text-foreground truncate flex-1 mr-2">
+              {videos[playingIdx].title}
+            </p>
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded-md"
+                onClick={() => openYouTube(videos[playingIdx])}
+                title="Open on YouTube"
+              >
+                <ExternalLink className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded-md"
+                onClick={closePlayer}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+            {iframeLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-muted/80 z-10">
+                <Loader2 className="h-6 w-6 text-primary animate-spin" />
+              </div>
+            )}
+
+            {iframeError ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/80 gap-2">
+                <AlertCircle className="h-6 w-6 text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">Video cannot be embedded</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openYouTube(videos[playingIdx])}
+                  className="text-xs rounded-lg"
+                >
+                  <ExternalLink className="h-3 w-3 mr-1" />
+                  Watch on YouTube
+                </Button>
+              </div>
+            ) : (
+              (() => {
+                const embedUrl = getEmbedUrl(videos[playingIdx]);
+                if (!embedUrl) {
+                  return (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/80 gap-2">
+                      <AlertCircle className="h-6 w-6 text-muted-foreground" />
+                      <p className="text-xs text-muted-foreground">No embed available</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openYouTube(videos[playingIdx])}
+                        className="text-xs rounded-lg"
+                      >
+                        <ExternalLink className="h-3 w-3 mr-1" />
+                        Search on YouTube
+                      </Button>
+                    </div>
+                  );
+                }
+                return (
+                  <iframe
+                    className="absolute inset-0 w-full h-full"
+                    src={embedUrl}
+                    title={videos[playingIdx].title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    onLoad={() => setIframeLoading(false)}
+                    onError={() => {
+                      setIframeLoading(false);
+                      setIframeError(true);
+                    }}
+                  />
+                );
+              })()
+            )}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Video List */}
       {videos.map((video, idx) => (
         <motion.button
           key={idx}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: idx * 0.1 }}
-          onClick={() => openYouTube(video.searchQuery)}
-          className="w-full text-left bg-muted/50 hover:bg-accent rounded-xl p-3.5 border border-border hover:border-primary/30 transition-all group"
+          onClick={() => video.videoId ? playVideo(idx) : openYouTube(video)}
+          className={`w-full text-left rounded-xl p-3.5 border transition-all group ${
+            playingIdx === idx
+              ? "bg-primary/5 border-primary/30"
+              : "bg-muted/50 hover:bg-accent border-border hover:border-primary/30"
+          }`}
         >
           <div className="flex items-start gap-3">
             <div className="h-10 w-10 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0 group-hover:bg-destructive/20 transition-colors">
@@ -135,6 +261,12 @@ const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
                   <Clock className="h-3 w-3" />
                   {video.duration}
                 </span>
+                {video.videoId && (
+                  <>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="text-[10px] text-primary font-medium">▶ Play</span>
+                  </>
+                )}
               </div>
               {video.keyPoints?.length > 0 && (
                 <div className="mt-2 space-y-1">
@@ -147,7 +279,11 @@ const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
                 </div>
               )}
             </div>
-            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary flex-shrink-0 mt-1" />
+            {video.videoId ? (
+              <Play className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary flex-shrink-0 mt-1" />
+            ) : (
+              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary flex-shrink-0 mt-1" />
+            )}
           </div>
         </motion.button>
       ))}
