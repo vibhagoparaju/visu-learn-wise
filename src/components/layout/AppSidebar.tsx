@@ -12,9 +12,7 @@ import {
   Layers,
   Library,
   HelpCircle,
-  Bookmark,
   CalendarDays,
-  
 } from "lucide-react";
 import GlobalSearch from "@/components/GlobalSearch";
 
