@@ -1,155 +1,148 @@
-import { motion } from "framer-motion";
-import { ArrowDown, Lightbulb, Zap, BookOpen } from "lucide-react";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ImageIcon, Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-interface VisualStep {
-  title: string;
+interface VisualExplanationProps {
   content: string;
-  type: "concept" | "step" | "highlight";
+  topic?: string;
 }
 
-function parseContentToSteps(content: string): VisualStep[] {
-  const steps: VisualStep[] = [];
-  
-  // Split by markdown headers, bullet points, or numbered items
-  const lines = content.split("\n").filter((l) => l.trim());
-  let currentTitle = "";
-  let currentContent = "";
-  
-  for (const line of lines) {
-    const trimmed = line.trim();
-    
-    // Detect headers
-    const headerMatch = trimmed.match(/^#{1,3}\s+(.+)/);
-    if (headerMatch) {
-      if (currentTitle || currentContent) {
-        steps.push({
-          title: currentTitle || "Key Point",
-          content: currentContent.trim(),
-          type: steps.length === 0 ? "concept" : "step",
-        });
-      }
-      currentTitle = headerMatch[1].replace(/\*\*/g, "");
-      currentContent = "";
-      continue;
-    }
-    
-    // Detect bold text as mini-headers
-    const boldMatch = trimmed.match(/^\*\*(.+?)\*\*[:\s]*(.*)/);
-    if (boldMatch && currentContent.length > 30) {
-      if (currentTitle || currentContent) {
-        steps.push({
-          title: currentTitle || "Key Point",
-          content: currentContent.trim(),
-          type: "step",
-        });
-      }
-      currentTitle = boldMatch[1];
-      currentContent = boldMatch[2] || "";
-      continue;
-    }
-    
-    // Clean markdown formatting for display
-    const cleaned = trimmed
-      .replace(/^\*\*(.+?)\*\*/, "$1")
-      .replace(/^[-*•]\s*/, "")
-      .replace(/^\d+\.\s*/, "");
-    
-    currentContent += (currentContent ? "\n" : "") + cleaned;
-  }
-  
-  if (currentTitle || currentContent) {
-    steps.push({
-      title: currentTitle || "Summary",
-      content: currentContent.trim(),
-      type: "highlight",
-    });
-  }
-  
-  // If we got too few steps, chunk the content
-  if (steps.length <= 1 && content.length > 100) {
-    const sentences = content
-      .replace(/\*\*/g, "")
-      .replace(/#{1,3}\s*/g, "")
-      .split(/[.!?]\s+/)
-      .filter((s) => s.trim().length > 10);
-    
-    const chunked: VisualStep[] = [];
-    const chunkSize = Math.ceil(sentences.length / Math.min(4, Math.max(2, Math.ceil(sentences.length / 3))));
-    
-    for (let i = 0; i < sentences.length; i += chunkSize) {
-      const chunk = sentences.slice(i, i + chunkSize).join(". ").trim();
-      if (chunk) {
-        chunked.push({
-          title: i === 0 ? "What is it?" : i < sentences.length / 2 ? "How it works" : "Key takeaway",
-          content: chunk + (chunk.endsWith(".") ? "" : "."),
-          type: i === 0 ? "concept" : i === sentences.length - chunkSize ? "highlight" : "step",
-        });
-      }
-    }
-    if (chunked.length > 1) return chunked;
-  }
-  
-  return steps.length > 0 ? steps : [{ title: "Overview", content: content.replace(/[#*_]/g, "").trim(), type: "concept" }];
-}
+const VISUAL_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-visual`;
 
-const stepIcons = {
-  concept: BookOpen,
-  step: Zap,
-  highlight: Lightbulb,
-};
+const VisualExplanation = ({ content, topic }: VisualExplanationProps) => {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasRequested, setHasRequested] = useState(false);
 
-const stepColors = {
-  concept: "bg-primary/10 border-primary/20 text-primary",
-  step: "bg-accent border-border text-accent-foreground",
-  highlight: "bg-success/10 border-success/20 text-success",
-};
+  const extractTopic = (text: string): string => {
+    if (topic) return topic;
+    // Try to extract topic from first header or first sentence
+    const headerMatch = text.match(/^#{1,3}\s+(.+)/m);
+    if (headerMatch) return headerMatch[1].replace(/\*\*/g, "").trim();
+    const firstSentence = text.split(/[.!?]/)[0]?.trim();
+    return firstSentence?.slice(0, 100) || "this concept";
+  };
 
-const VisualExplanation = ({ content }: { content: string }) => {
-  const steps = parseContentToSteps(content);
+  const generateVisual = async () => {
+    setLoading(true);
+    setError(null);
+    setHasRequested(true);
+
+    try {
+      const resp = await fetch(VISUAL_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          topic: extractTopic(content),
+          explanation: content.replace(/[#*_]/g, "").slice(0, 600),
+        }),
+      });
+
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || `Error ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      setImageUrl(data.imageUrl);
+      setDescription(data.description || "");
+    } catch (e: any) {
+      setError(e.message || "Failed to generate visual");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Auto-generate on first render
+  useEffect(() => {
+    if (!hasRequested && !imageUrl) {
+      generateVisual();
+    }
+  }, []);
+
+  if (!hasRequested || loading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex flex-col items-center justify-center py-8 gap-3"
+      >
+        <div className="relative">
+          <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+            <Loader2 className="h-5 w-5 text-primary animate-spin" />
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground animate-pulse">
+          Generating visual explanation…
+        </p>
+      </motion.div>
+    );
+  }
+
+  if (error) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex flex-col items-center justify-center py-6 gap-3"
+      >
+        <div className="h-10 w-10 rounded-xl bg-destructive/10 flex items-center justify-center">
+          <AlertCircle className="h-5 w-5 text-destructive" />
+        </div>
+        <p className="text-sm text-muted-foreground text-center">{error}</p>
+        <Button variant="outline" size="sm" onClick={generateVisual} className="rounded-lg">
+          <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+          Try again
+        </Button>
+      </motion.div>
+    );
+  }
 
   return (
-    <div className="space-y-3 py-2">
-      {steps.map((step, i) => {
-        const Icon = stepIcons[step.type];
-        const colorClass = stepColors[step.type];
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-3"
+    >
+      {/* Image */}
+      {imageUrl && (
+        <div className="rounded-xl overflow-hidden border border-border bg-background">
+          <img
+            src={imageUrl}
+            alt={`Visual explanation of ${extractTopic(content)}`}
+            className="w-full h-auto"
+            loading="lazy"
+          />
+        </div>
+      )}
 
-        return (
-          <div key={i} className="flex flex-col items-center">
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.12, type: "spring", bounce: 0.25 }}
-              className={`w-full rounded-xl border p-4 ${colorClass}`}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <div className="h-6 w-6 rounded-lg bg-background/60 flex items-center justify-center">
-                  <Icon className="h-3.5 w-3.5" />
-                </div>
-                <span className="text-xs font-semibold uppercase tracking-wider opacity-80">
-                  {step.title}
-                </span>
-                <span className="ml-auto text-[10px] font-medium opacity-50">
-                  {i + 1}/{steps.length}
-                </span>
-              </div>
-              <p className="text-sm leading-relaxed text-foreground/90">
-                {step.content}
-              </p>
-            </motion.div>
-            {i < steps.length - 1 && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: i * 0.12 + 0.06 }}
-                className="my-1"
-              >
-                <ArrowDown className="h-4 w-4 text-muted-foreground/40" />
-              </motion.div>
-            )}
-          </div>
-        );
-      })}
-    </div>
+      {/* Description */}
+      {description && (
+        <p className="text-xs text-muted-foreground leading-relaxed px-1">
+          {description}
+        </p>
+      )}
+
+      {/* Regenerate */}
+      <div className="flex justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={generateVisual}
+          disabled={loading}
+          className="text-xs rounded-lg"
+        >
+          <RefreshCw className="h-3 w-3 mr-1" />
+          Regenerate
+        </Button>
+      </div>
+    </motion.div>
   );
 };
 
