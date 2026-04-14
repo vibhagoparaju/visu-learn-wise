@@ -1,4 +1,4 @@
-import { BookOpen, Eye, Brain } from "lucide-react";
+import { BookOpen, ImageIcon, Brain } from "lucide-react";
 
 export type ViewMode = "explain" | "visual" | "retain";
 
@@ -9,7 +9,7 @@ interface MessageViewToggleProps {
 
 const views: { key: ViewMode; label: string; icon: typeof BookOpen }[] = [
   { key: "explain", label: "Explain", icon: BookOpen },
-  { key: "visual", label: "Visual", icon: Eye },
+  { key: "visual", label: "Visual", icon: ImageIcon },
   { key: "retain", label: "Retain", icon: Brain },
 ];
 
