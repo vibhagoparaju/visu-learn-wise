@@ -208,6 +208,8 @@ export type Database = {
           id: string
           last_study_date: string | null
           level: number | null
+          selected_board: string | null
+          selected_grade: string | null
           streak_days: number | null
           tutor_name: string | null
           updated_at: string | null
@@ -222,6 +224,8 @@ export type Database = {
           id: string
           last_study_date?: string | null
           level?: number | null
+          selected_board?: string | null
+          selected_grade?: string | null
           streak_days?: number | null
           tutor_name?: string | null
           updated_at?: string | null
@@ -236,6 +240,8 @@ export type Database = {
           id?: string
           last_study_date?: string | null
           level?: number | null
+          selected_board?: string | null
+          selected_grade?: string | null
           streak_days?: number | null
           tutor_name?: string | null
           updated_at?: string | null

@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import WellnessReminder from "@/components/study/WellnessReminder";
 import VisualExplanation from "@/components/study/VisualExplanation";
+import VideoExplanation from "@/components/study/VideoExplanation";
 import RetainPanel from "@/components/study/RetainPanel";
 import MessageViewToggle, { type ViewMode } from "@/components/study/MessageViewToggle";
 import { useParams } from "react-router-dom";
@@ -229,6 +230,15 @@ const Study = () => {
               exit={{ opacity: 0 }}
             >
               <VisualExplanation content={msg.content} topic={urlTopic ? decodeURIComponent(urlTopic) : undefined} />
+            </motion.div>
+          ) : viewMode === "video" && isComplete ? (
+            <motion.div
+              key="video"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <VideoExplanation content={msg.content} topic={urlTopic ? decodeURIComponent(urlTopic) : undefined} />
             </motion.div>
           ) : viewMode === "retain" && isComplete ? (
             <motion.div

@@ -13,6 +13,8 @@ interface Profile {
   level: number;
   streak_days: number;
   last_study_date: string | null;
+  selected_board: string | null;
+  selected_grade: string | null;
 }
 
 interface AuthContextType {

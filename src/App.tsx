@@ -17,6 +17,7 @@ import Flashcards from "./pages/Flashcards";
 import Quiz from "./pages/Quiz";
 import Bookmarks from "./pages/Bookmarks";
 import Planner from "./pages/Planner";
+import Syllabus from "./pages/Syllabus";
 
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -76,7 +77,7 @@ const App = () => (
                 <Route path="/quiz" element={<Quiz />} />
                 <Route path="/bookmarks" element={<Bookmarks />} />
                 <Route path="/planner" element={<Planner />} />
-                
+                <Route path="/syllabus" element={<Syllabus />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
