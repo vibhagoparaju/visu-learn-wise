@@ -10,6 +10,7 @@ import {
   Coffee,
   Clock,
   Layers,
+  Library,
   HelpCircle,
   Bookmark,
   CalendarDays,
@@ -23,7 +24,7 @@ const navGroups = [
     items: [
       { to: "/", icon: LayoutDashboard, label: "Dashboard" },
       { to: "/study", icon: BookOpen, label: "Study" },
-      
+      { to: "/syllabus", icon: Library, label: "Syllabus" },
       { to: "/upload", icon: Upload, label: "Upload" },
     ],
   },
