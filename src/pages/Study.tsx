@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Sparkles, User, Maximize2, Minimize2, MessageSquareText, Lightbulb, Mic, MicOff, Volume2, VolumeX, Loader2, HelpCircle, Coffee, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import WellnessReminder from "@/components/study/WellnessReminder";
+import VisualExplanation from "@/components/study/VisualExplanation";
+import RetainPanel from "@/components/study/RetainPanel";
+import MessageViewToggle, { type ViewMode } from "@/components/study/MessageViewToggle";
 import { useParams } from "react-router-dom";
 
 interface Message {
@@ -65,8 +68,13 @@ const Study = () => {
   const [focusMode, setFocusMode] = useState(false);
   const [mode, setMode] = useState<StudyMode>("chat");
   const [sessionMinutes, setSessionMinutes] = useState(0);
+  const [messageViews, setMessageViews] = useState<Record<string, ViewMode>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const { isListening, isSpeaking, startListening, stopListening, speak, stopSpeaking } = useVoice();
+
+  const getViewMode = (msgId: string): ViewMode => messageViews[msgId] || "explain";
+  const setViewMode = (msgId: string, view: ViewMode) =>
+    setMessageViews((prev) => ({ ...prev, [msgId]: view }));
 
   const [autoSent, setAutoSent] = useState(false);
   useEffect(() => {
@@ -85,7 +93,7 @@ const Study = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isLoading]);
 
-  const retainAsFlashcards = async (content: string) => {
+  const retainAsFlashcards = useCallback(async (content: string) => {
     if (!user) return;
     toast.loading("Creating flashcards...", { id: "retain" });
 
@@ -120,7 +128,7 @@ const Study = () => {
       },
       onError: () => toast.error("Failed to create flashcards", { id: "retain" }),
     });
-  };
+  }, [user, urlTopic]);
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -193,6 +201,76 @@ const Study = () => {
     } catch (err: any) {
       toast.error(err.message || "Voice input failed");
     }
+  };
+
+  const renderMessageContent = (msg: Message) => {
+    const viewMode = getViewMode(msg.id);
+    const isComplete = msg.id !== "streaming" && msg.id !== "welcome";
+
+    return (
+      <div>
+        {/* View toggle for completed assistant messages */}
+        {msg.role === "assistant" && isComplete && (
+          <div className="mb-3">
+            <MessageViewToggle
+              activeView={viewMode}
+              onViewChange={(v) => setViewMode(msg.id, v)}
+            />
+          </div>
+        )}
+
+        {/* Content based on active view */}
+        <AnimatePresence mode="wait">
+          {viewMode === "visual" && isComplete ? (
+            <motion.div
+              key="visual"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <VisualExplanation content={msg.content} />
+            </motion.div>
+          ) : viewMode === "retain" && isComplete ? (
+            <motion.div
+              key="retain"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <RetainPanel content={msg.content} onRetain={retainAsFlashcards} />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="explain"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              {msg.role === "assistant" ? (
+                <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-code:text-primary prose-code:bg-accent prose-code:px-1 prose-code:rounded">
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                </div>
+              ) : (
+                <span className="whitespace-pre-wrap">{msg.content}</span>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Action bar for completed assistant messages (only in explain mode) */}
+        {msg.role === "assistant" && isComplete && viewMode === "explain" && (
+          <div className="mt-2 flex items-center gap-3 border-t border-border/50 pt-2">
+            <button
+              onClick={() => isSpeaking ? stopSpeaking() : speak(msg.content)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+            >
+              {isSpeaking ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
+              {isSpeaking ? "Stop" : "Listen"}
+            </button>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -268,37 +346,13 @@ const Study = () => {
                 </div>
               )}
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   msg.role === "user"
                     ? "gradient-primary text-primary-foreground rounded-br-md"
                     : "bg-card shadow-card text-foreground rounded-bl-md"
                 }`}
               >
-                {msg.role === "assistant" ? (
-                  <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-code:text-primary prose-code:bg-accent prose-code:px-1 prose-code:rounded">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <span className="whitespace-pre-wrap">{msg.content}</span>
-                )}
-                {msg.role === "assistant" && msg.id !== "welcome" && msg.id !== "streaming" && (
-                  <div className="mt-2 flex items-center gap-3 border-t border-border/50 pt-2">
-                    <button
-                      onClick={() => isSpeaking ? stopSpeaking() : speak(msg.content)}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                    >
-                      {isSpeaking ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
-                      {isSpeaking ? "Stop" : "Listen"}
-                    </button>
-                    <button
-                      onClick={() => retainAsFlashcards(msg.content)}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                    >
-                      <Brain className="h-3 w-3" />
-                      Retain
-                    </button>
-                  </div>
-                )}
+                {renderMessageContent(msg)}
               </div>
               {msg.role === "user" && (
                 <div className="h-8 w-8 rounded-xl bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
