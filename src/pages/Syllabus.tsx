@@ -257,8 +257,10 @@ const Syllabus = () => {
   const getTitle = () => {
     switch (step) {
       case "board": return "Choose Your Board";
-      case "grade": return boardInfo?.name || "";
-      case "subject": return `${boardInfo?.name} · ${selectedGrade}`;
+      case "university": return "Select University";
+      case "stream": return selectedUniversity;
+      case "grade": return selectedBoard === "university" ? `${selectedUniversity} · ${selectedStream}` : (boardInfo?.name || "");
+      case "subject": return selectedBoard === "university" ? `${selectedStream} · ${selectedGrade}` : `${boardInfo?.name} · ${selectedGrade}`;
       case "chapter": return selectedSubject;
       case "topic": return selectedChapter;
     }
@@ -267,9 +269,11 @@ const Syllabus = () => {
   const getSubtitle = () => {
     switch (step) {
       case "board": return "Select your education board or learning path";
-      case "grade": return "Select your class or level";
+      case "university": return "Choose your university";
+      case "stream": return "Select your branch or stream";
+      case "grade": return "Select your year or class";
       case "subject": return "Choose a subject to explore";
-      case "chapter": return `${boardInfo?.name} · ${selectedGrade} · Chapters`;
+      case "chapter": return `Chapters`;
       case "topic": return `${selectedSubject} · Subtopics`;
     }
   };
