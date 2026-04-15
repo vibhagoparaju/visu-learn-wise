@@ -41,12 +41,19 @@ serve(async (req) => {
               role: "system",
               content: `You are an AI document analyzer for a study platform. Analyze the provided document text and extract structured information.
 
+MULTILINGUAL RULES:
+- Auto-detect the language of the document
+- Write the summary and key_points in the SAME language as the document
+- If the document contains mixed languages, use the dominant language for output
+- Support ALL languages including non-Latin scripts (Hindi, Arabic, Chinese, Japanese, Korean, etc.)
+
 Return a JSON object with exactly this structure:
 {
   "topics": ["topic1", "topic2", ...],
-  "summary": "A clear, concise summary of the document",
+  "summary": "A clear, concise summary of the document (in the document's language)",
   "key_points": ["point1", "point2", ...],
-  "formulas": ["formula1", "formula2", ...]
+  "formulas": ["formula1", "formula2", ...],
+  "detected_language": "ISO 639-1 code (e.g. en, hi, fr, ar, zh)"
 }
 
 Be thorough but concise. Extract all key topics, important points, and any mathematical/scientific formulas.

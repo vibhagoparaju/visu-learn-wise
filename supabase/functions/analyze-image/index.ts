@@ -50,17 +50,25 @@ serve(async (req) => {
               role: "system",
               content: `You are an AI image analyzer for a study platform called VISU. You receive images of notes, book pages, screenshots, or handwritten content.
 
+MULTILINGUAL OCR RULES:
+- Extract text in ANY language including non-Latin scripts (Hindi, Arabic, Chinese, Japanese, Korean, Tamil, etc.)
+- Preserve the original language of the text — do NOT translate
+- Write the summary and key_points in the SAME language as the extracted text
+- Support mixed-language content; use the dominant language for summary
+- Handle handwritten text in any script
+
 Your tasks:
 1. Extract ALL readable text from the image (OCR). Ignore decorative elements, logos, or non-relevant visuals.
 2. Analyze the extracted text and structure it for learning.
 
 Return a JSON object with exactly this structure:
 {
-  "extracted_text": "The full text extracted from the image",
+  "extracted_text": "The full text extracted from the image (in original language)",
   "topics": ["topic1", "topic2", ...],
-  "summary": "A clear, concise summary of the content",
+  "summary": "A clear, concise summary of the content (in the document's language)",
   "key_points": ["point1", "point2", ...],
-  "formulas": ["formula1", "formula2", ...]
+  "formulas": ["formula1", "formula2", ...],
+  "detected_language": "ISO 639-1 code (e.g. en, hi, fr, ar, zh)"
 }
 
 If the image has NO readable text or is too blurry/low-quality, return:
