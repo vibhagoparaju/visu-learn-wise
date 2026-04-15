@@ -104,15 +104,37 @@ const Auth = () => {
         {/* Form Card */}
         <div className="bg-card rounded-2xl p-6 shadow-elevated">
           <h2 className="text-lg font-semibold text-foreground mb-1">
-            {isLogin ? "Welcome back!" : "Create your account"}
+            {forgotPassword ? "Reset Password" : isLogin ? "Welcome back!" : "Create your account"}
           </h2>
           <p className="text-sm text-muted-foreground mb-6">
-            {isLogin ? "Sign in to continue learning" : "Start your learning journey today"}
+            {forgotPassword ? "Enter your email and we'll send a reset link" : isLogin ? "Sign in to continue learning" : "Start your learning journey today"}
           </p>
 
-          {/* Google Sign-In */}
-          <Button
-            variant="outline"
+          {forgotPassword ? (
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="email"
+                  placeholder="Email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full bg-muted rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <Button type="submit" variant="gradient" className="w-full rounded-xl h-12 font-semibold shadow-glow" disabled={loading}>
+                {loading ? <span className="animate-pulse">Sending...</span> : <>Send Reset Link <ArrowRight className="h-4 w-4 ml-1" /></>}
+              </Button>
+              <div className="text-center">
+                <button onClick={() => setForgotPassword(false)} className="text-sm text-primary hover:underline font-medium">
+                  Back to Sign In
+                </button>
+              </div>
+            </form>
+          ) : (
+          <>
+
             className="w-full rounded-xl h-12 font-medium mb-4"
             onClick={handleGoogleSignIn}
             disabled={loading}
@@ -186,7 +208,15 @@ const Auth = () => {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          {isLogin && (
+            <div className="mt-3 text-center">
+              <button onClick={() => setForgotPassword(true)} className="text-xs text-muted-foreground hover:text-primary hover:underline">
+                Forgot your password?
+              </button>
+            </div>
+          )}
+
+          <div className="mt-4 text-center">
             <button
               onClick={() => setIsLogin(!isLogin)}
               className="text-sm text-primary hover:underline font-medium"
@@ -194,6 +224,8 @@ const Auth = () => {
               {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
             </button>
           </div>
+          </>
+          )}
         </div>
 
         <p className="text-xs text-muted-foreground text-center mt-6">
