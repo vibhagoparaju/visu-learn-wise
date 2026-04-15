@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Volume2, VolumeX, Palette, GraduationCap, User, Moon, Sun } from "lucide-react";
+import { Sparkles, Volume2, VolumeX, Palette, GraduationCap, User, Moon, Sun, Dog } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
+import { usePuppy } from "@/hooks/usePuppy";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import PuppyMascot from "@/components/mascot/PuppyMascot";
 
 const container = {
   hidden: { opacity: 0 },
@@ -19,6 +21,7 @@ const item = {
 const SettingsPage = () => {
   const { profile, user, refreshProfile } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { enabled: puppyEnabled, setEnabled: setPuppyEnabled } = usePuppy();
   const [tutorName, setTutorName] = useState(profile?.tutor_name || "VISU");
   const [difficulty, setDifficulty] = useState<"beginner" | "intermediate" | "advanced">(
     (profile?.difficulty_level as any) || "beginner"
@@ -51,6 +54,7 @@ const SettingsPage = () => {
         difficulty_level: difficulty,
         ai_personality: personality,
         voice_enabled: voiceEnabled,
+        puppy_enabled: puppyEnabled,
       })
       .eq("id", user.id);
 
