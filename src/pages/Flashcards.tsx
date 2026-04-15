@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { RotateCcw, ThumbsUp, ThumbsDown, Plus, Sparkles, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { usePuppy } from "@/hooks/usePuppy";
 import { supabase } from "@/integrations/supabase/client";
 import { streamChat } from "@/services/ai";
 import { awardFlashcardXP } from "@/services/xpService";
