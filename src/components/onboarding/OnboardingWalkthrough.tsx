@@ -2,13 +2,15 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, MessageSquare, Brain, BarChart3, Layers, Trophy, ArrowRight, X, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import PuppyMascot, { type PuppyMood } from "@/components/mascot/PuppyMascot";
 
 interface OnboardingStep {
   icon: React.ElementType;
   title: string;
   description: string;
   gradient: string;
-  emoji: string;
+  puppyMood: PuppyMood;
+  puppyMessage: string;
 }
 
 const steps: OnboardingStep[] = [
