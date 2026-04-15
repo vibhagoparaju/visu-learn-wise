@@ -180,38 +180,6 @@ const Dashboard = () => {
         )}
       </motion.div>
 
-      {/* Weak Topics */}
-      {weakTopics.length > 0 && (
-        <motion.div variants={item} className="bg-card rounded-2xl p-5 shadow-card">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="h-4 w-4 text-warning" />
-            <h2 className="text-sm font-semibold text-foreground">Needs Review</h2>
-          </div>
-          <div className="space-y-3">
-            {weakTopics.map((t) => (
-              <button
-                key={t.topic}
-                onClick={() => navigate(`/study/${encodeURIComponent(t.topic)}`)}
-                className="w-full flex items-center gap-3 group"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm text-foreground truncate">{t.topic}</span>
-                    <span className="text-xs text-muted-foreground ml-2">{t.mastery_pct}%</span>
-                  </div>
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full gradient-warm rounded-full transition-all"
-                      style={{ width: `${t.mastery_pct}%` }}
-                    />
-                  </div>
-                </div>
-                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/0 group-hover:text-muted-foreground transition-all flex-shrink-0" />
-              </button>
-            ))}
-          </div>
-        </motion.div>
-      )}
 
       {/* Recent Activity */}
       {recentDocs.length > 0 && (
