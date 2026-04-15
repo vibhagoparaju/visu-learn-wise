@@ -8,6 +8,7 @@ import { streamChat } from "@/services/ai";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
+import { awardStudyXP } from "@/services/xpService";
 import WellnessReminder from "@/components/study/WellnessReminder";
 import VisualExplanation from "@/components/study/VisualExplanation";
 import VideoExplanation from "@/components/study/VideoExplanation";
@@ -218,6 +219,11 @@ const Study = () => {
             } catch (e) {
               console.error("Progress tracking error:", e);
             }
+          }
+
+          // Award XP
+          if (user) {
+            awardStudyXP(user.id).catch(console.error);
           }
 
           if (profile?.voice_enabled && assistantContent) {

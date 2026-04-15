@@ -44,6 +44,34 @@ const boards = [
   { id: "classical", name: "Classical Learning", desc: "Traditional texts & wisdom", icon: "📜" },
 ];
 
+const universities = [
+  { id: "jntuk", name: "JNTUK", desc: "Jawaharlal Nehru Technological University, Kakinada" },
+  { id: "jntuh", name: "JNTUH", desc: "Jawaharlal Nehru Technological University, Hyderabad" },
+  { id: "au", name: "Andhra University", desc: "Andhra University, Visakhapatnam" },
+  { id: "svuce", name: "SVU", desc: "Sri Venkateswara University, Tirupati" },
+  { id: "ou", name: "Osmania University", desc: "Osmania University, Hyderabad" },
+  { id: "du", name: "Delhi University", desc: "University of Delhi" },
+  { id: "mu", name: "Mumbai University", desc: "University of Mumbai" },
+  { id: "other", name: "Other University", desc: "Enter your university name" },
+];
+
+const streams = [
+  "Computer Science & Engineering",
+  "Electronics & Communication",
+  "Electrical Engineering",
+  "Mechanical Engineering",
+  "Civil Engineering",
+  "Information Technology",
+  "Chemical Engineering",
+  "Biotechnology",
+  "B.Sc Computer Science",
+  "B.Sc Mathematics",
+  "B.Sc Physics",
+  "BBA",
+  "B.Com",
+  "BA English",
+];
+
 const gradesByBoard: Record<string, string[]> = {
   cbse: ["Class 6", "Class 7", "Class 8", "Class 9", "Class 10", "Class 11", "Class 12"],
   icse: ["Class 6", "Class 7", "Class 8", "Class 9", "Class 10", "Class 11", "Class 12"],
@@ -76,7 +104,7 @@ const difficultyColors: Record<string, string> = {
   advanced: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
-type Step = "board" | "grade" | "subject" | "chapter" | "topic";
+type Step = "board" | "university" | "stream" | "grade" | "subject" | "chapter" | "topic";
 
 const Syllabus = () => {
   const navigate = useNavigate();
@@ -91,6 +119,9 @@ const Syllabus = () => {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedUniversity, setSelectedUniversity] = useState("");
+  const [selectedStream, setSelectedStream] = useState("");
+  const [customUniversity, setCustomUniversity] = useState("");
 
   useEffect(() => {
     if (profile?.selected_board && profile?.selected_grade) {
@@ -123,14 +154,17 @@ const Syllabus = () => {
     return resp.json();
   };
 
-  const fetchSubjects = async (board: string, grade: string) => {
+  const fetchSubjects = async (board: string, grade: string, university?: string, stream?: string) => {
     if (board === "classical") {
       setSubjects(classicalSubjects);
       return;
     }
     setLoading(true);
     try {
-      const data = await fetchData({ board, grade });
+      const body: Record<string, string> = { board, grade };
+      if (university) body.university = university;
+      if (stream) body.stream = stream;
+      const data = await fetchData(body);
       setSubjects(data.subjects || []);
     } catch (e: any) {
       toast.error(e.message || "Failed to load subjects");
@@ -165,14 +199,30 @@ const Syllabus = () => {
 
   const selectBoard = (boardId: string) => {
     setSelectedBoard(boardId);
+    if (boardId === "university") {
+      setStep("university");
+    } else {
+      setStep("grade");
+    }
+  };
+
+  const selectUniversity = (uniId: string) => {
+    const uni = universities.find((u) => u.id === uniId);
+    setSelectedUniversity(uni?.name || uniId);
+    setStep("stream");
+  };
+
+  const selectStream = (stream: string) => {
+    setSelectedStream(stream);
     setStep("grade");
   };
 
   const selectGrade = (grade: string) => {
     setSelectedGrade(grade);
-    savePreference(selectedBoard, grade);
+    const boardLabel = selectedBoard === "university" ? `${selectedUniversity} - ${selectedStream}` : selectedBoard;
+    savePreference(boardLabel, grade);
     setStep("subject");
-    fetchSubjects(selectedBoard, grade);
+    fetchSubjects(selectedBoard, grade, selectedUniversity, selectedStream);
   };
 
   const selectSubject = (subject: string) => {
@@ -196,7 +246,10 @@ const Syllabus = () => {
     if (step === "topic") { setStep("chapter"); setTopics([]); }
     else if (step === "chapter") { setStep("subject"); setChapters([]); }
     else if (step === "subject") { setStep("grade"); setSubjects([]); }
+    else if (step === "grade" && selectedBoard === "university") { setStep("stream"); }
     else if (step === "grade") setStep("board");
+    else if (step === "stream") setStep("university");
+    else if (step === "university") setStep("board");
   };
 
   const boardInfo = boards.find((b) => b.id === selectedBoard);
@@ -204,8 +257,10 @@ const Syllabus = () => {
   const getTitle = () => {
     switch (step) {
       case "board": return "Choose Your Board";
-      case "grade": return boardInfo?.name || "";
-      case "subject": return `${boardInfo?.name} · ${selectedGrade}`;
+      case "university": return "Select University";
+      case "stream": return selectedUniversity;
+      case "grade": return selectedBoard === "university" ? `${selectedUniversity} · ${selectedStream}` : (boardInfo?.name || "");
+      case "subject": return selectedBoard === "university" ? `${selectedStream} · ${selectedGrade}` : `${boardInfo?.name} · ${selectedGrade}`;
       case "chapter": return selectedSubject;
       case "topic": return selectedChapter;
     }
@@ -214,9 +269,11 @@ const Syllabus = () => {
   const getSubtitle = () => {
     switch (step) {
       case "board": return "Select your education board or learning path";
-      case "grade": return "Select your class or level";
+      case "university": return "Choose your university";
+      case "stream": return "Select your branch or stream";
+      case "grade": return "Select your year or class";
       case "subject": return "Choose a subject to explore";
-      case "chapter": return `${boardInfo?.name} · ${selectedGrade} · Chapters`;
+      case "chapter": return `Chapters`;
       case "topic": return `${selectedSubject} · Subtopics`;
     }
   };
@@ -306,6 +363,57 @@ const Syllabus = () => {
                   <p className="text-xs text-muted-foreground">{board.desc}</p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
+
+        {/* University Selection */}
+        {step === "university" && (
+          <motion.div key="university" variants={container} initial="hidden" animate="show" exit={{ opacity: 0 }} className="grid gap-3">
+            {universities.map((uni) => (
+              <motion.button
+                key={uni.id}
+                variants={item}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  if (uni.id === "other") {
+                    const name = customUniversity || prompt("Enter your university name:");
+                    if (name) {
+                      setSelectedUniversity(name);
+                      setStep("stream");
+                    }
+                  } else {
+                    selectUniversity(uni.id);
+                  }
+                }}
+                className="flex items-center gap-4 bg-card rounded-2xl p-4 shadow-card border border-border hover:border-primary/30 transition-all text-left"
+              >
+                <div className="h-12 w-12 rounded-xl bg-accent flex items-center justify-center text-2xl flex-shrink-0">
+                  🎓
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{uni.name}</p>
+                  <p className="text-xs text-muted-foreground">{uni.desc}</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
+
+        {/* Stream Selection */}
+        {step === "stream" && (
+          <motion.div key="stream" variants={container} initial="hidden" animate="show" exit={{ opacity: 0 }} className="grid grid-cols-2 gap-3">
+            {streams.map((stream) => (
+              <motion.button
+                key={stream}
+                variants={item}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => selectStream(stream)}
+                className="bg-card rounded-xl p-4 shadow-card border border-border hover:border-primary/30 transition-all text-center"
+              >
+                <p className="text-sm font-semibold text-foreground">{stream}</p>
               </motion.button>
             ))}
           </motion.div>

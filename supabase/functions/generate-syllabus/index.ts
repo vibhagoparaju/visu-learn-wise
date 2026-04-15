@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { board, grade, subject, chapter } = await req.json();
+    const { board, grade, subject, chapter, university, stream } = await req.json();
 
     if (!board || typeof board !== "string") {
       return new Response(
@@ -81,17 +81,20 @@ Return a JSON object:
 Return ONLY valid JSON, no markdown.`;
     } else {
       // Level 1: Get subjects
+      const uniContext = university ? `University: ${university}\nStream/Branch: ${stream || "General"}\n` : "";
       prompt = `You are an expert curriculum designer with deep knowledge of the ${board} education system.
 
 Generate the list of subjects for:
 Board: ${board}
-Grade/Year: ${grade || "General"}
+${uniContext}Grade/Year: ${grade || "General"}
 
 IMPORTANT RULES:
-- List ALL subjects that are officially part of the ${board} ${grade} curriculum
-- Use EXACT subject names as they appear in official ${board} documentation
+- List ALL subjects that are officially part of the ${board} ${grade} curriculum${university ? ` for ${stream} at ${university}` : ""}
+- Use EXACT subject names as they appear in official documentation
 - Include both compulsory and common elective subjects
 - Provide accurate topic counts based on the actual number of chapters
+${university ? `- For university subjects, include semester-wise subjects if applicable
+- Match the actual syllabus of ${university} for ${stream} ${grade}` : ""}
 
 Return a JSON object:
 {
