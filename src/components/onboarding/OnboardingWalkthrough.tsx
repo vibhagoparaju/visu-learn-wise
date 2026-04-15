@@ -2,13 +2,15 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, MessageSquare, Brain, BarChart3, Layers, Trophy, ArrowRight, X, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import PuppyMascot, { type PuppyMood } from "@/components/mascot/PuppyMascot";
 
 interface OnboardingStep {
   icon: React.ElementType;
   title: string;
   description: string;
   gradient: string;
-  emoji: string;
+  puppyMood: PuppyMood;
+  puppyMessage: string;
 }
 
 const steps: OnboardingStep[] = [
@@ -17,42 +19,48 @@ const steps: OnboardingStep[] = [
     title: "Upload Your Notes",
     description: "Drop PDFs, images, or paste text. VISU extracts key topics and summaries instantly.",
     gradient: "gradient-success",
-    emoji: "📄",
+    puppyMood: "encouraging",
+    puppyMessage: "Let's get started! 📄",
   },
   {
     icon: MessageSquare,
     title: "Chat with AI Tutor",
     description: "Ask anything about your material. Get clear, personalized explanations with visuals and videos.",
     gradient: "gradient-primary",
-    emoji: "💬",
+    puppyMood: "happy",
+    puppyMessage: "I'll help you learn! 💬",
   },
   {
     icon: Brain,
     title: "Learn & Visualize",
     description: "AI generates diagrams, finds relevant videos, and breaks concepts into bite-sized pieces.",
     gradient: "gradient-warm",
-    emoji: "🧠",
+    puppyMood: "thinking",
+    puppyMessage: "Hmm, let me think... 🧠",
   },
   {
     icon: Layers,
     title: "Review with Flashcards",
     description: "Spaced repetition flashcards and quizzes lock knowledge into long-term memory.",
     gradient: "gradient-accent",
-    emoji: "🃏",
+    puppyMood: "encouraging",
+    puppyMessage: "You can do it! 💪",
   },
   {
     icon: BarChart3,
     title: "Track Your Progress",
     description: "See mastery levels, streaks, and weak areas. The planner keeps you on track for exams.",
     gradient: "gradient-primary",
-    emoji: "📊",
+    puppyMood: "idle",
+    puppyMessage: "Look how far you've come! 📊",
   },
   {
     icon: Trophy,
     title: "Earn Rewards",
     description: "Gain XP, level up, and unlock achievements as you study. Your puppy companion cheers you on!",
     gradient: "gradient-warm",
-    emoji: "🏆",
+    puppyMood: "happy",
+    puppyMessage: "Yay, rewards! 🏆",
   },
 ];
 
@@ -121,30 +129,22 @@ const OnboardingWalkthrough = () => {
               <X className="h-4 w-4" />
             </button>
 
-            {/* Icon area */}
-            <div className="pt-10 pb-6 flex flex-col items-center">
+            {/* Puppy + Icon area */}
+            <div className="pt-8 pb-4 flex flex-col items-center gap-3">
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={currentStep}
-                  initial={{ opacity: 0, scale: 0.5, rotate: -10 }}
-                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                  exit={{ opacity: 0, scale: 0.5, rotate: 10 }}
+                  key={`puppy-${currentStep}`}
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.5 }}
                   transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
-                  className="relative"
                 >
-                  <div className={`h-20 w-20 rounded-2xl ${step.gradient} flex items-center justify-center shadow-glow`}>
-                    <Icon className="h-9 w-9 text-primary-foreground" />
-                  </div>
-                  <motion.span
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="absolute -top-2 -right-2 text-2xl"
-                  >
-                    {step.emoji}
-                  </motion.span>
+                  <PuppyMascot mood={step.puppyMood} size="md" message={step.puppyMessage} />
                 </motion.div>
               </AnimatePresence>
+              <div className={`h-12 w-12 rounded-xl ${step.gradient} flex items-center justify-center shadow-glow`}>
+                <Icon className="h-6 w-6 text-primary-foreground" />
+              </div>
             </div>
 
             {/* Content */}
