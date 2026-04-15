@@ -231,7 +231,7 @@ const SettingsPage = () => {
         )}
       </motion.div>
 
-
+      <motion.div variants={item}>
         <Button
           variant="gradient"
           className="w-full rounded-xl h-12 font-semibold shadow-glow"
