@@ -282,12 +282,20 @@ const UploadNotes = () => {
               </div>
               <p className="text-sm font-semibold text-foreground">Upload notes, book pages, or screenshots</p>
               <p className="text-xs text-muted-foreground mt-1">JPG, JPEG, PNG — we'll extract text & analyze</p>
-              <label>
-                <Button variant="outline" size="sm" className="mt-4 cursor-pointer rounded-full px-5" asChild>
-                  <span>Choose Image</span>
-                </Button>
-                <input type="file" multiple accept=".jpg,.jpeg,.png,image/jpeg,image/png" onChange={handleFileInput} className="hidden" />
-              </label>
+              <div className="flex items-center justify-center gap-3 mt-4 flex-wrap">
+                <label>
+                  <Button variant="outline" size="sm" className="cursor-pointer rounded-full px-5" asChild>
+                    <span>Choose Image</span>
+                  </Button>
+                  <input type="file" multiple accept=".jpg,.jpeg,.png,image/jpeg,image/png" onChange={handleFileInput} className="hidden" />
+                </label>
+                <label>
+                  <Button variant="gradient" size="sm" className="cursor-pointer rounded-full px-5 gap-1.5" asChild>
+                    <span><Camera className="h-3.5 w-3.5" /> Take Photo</span>
+                  </Button>
+                  <input type="file" accept="image/jpeg,image/png" capture="environment" onChange={handleFileInput} className="hidden" />
+                </label>
+              </div>
             </div>
           </motion.div>
         ) : (
