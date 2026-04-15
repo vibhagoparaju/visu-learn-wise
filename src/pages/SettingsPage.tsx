@@ -204,7 +204,34 @@ const SettingsPage = () => {
         </button>
       </motion.div>
 
-      <motion.div variants={item}>
+      {/* Puppy Companion Toggle */}
+      <motion.div variants={item} className="bg-card rounded-2xl p-5 shadow-card space-y-4">
+        <button onClick={() => setPuppyEnabled(!puppyEnabled)} className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-3">
+            <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${puppyEnabled ? "gradient-primary" : "bg-muted"}`}>
+              <Dog className={`h-5 w-5 ${puppyEnabled ? "text-primary-foreground" : "text-muted-foreground"}`} />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-foreground">Study Buddy</p>
+              <p className="text-xs text-muted-foreground">Show your AI puppy companion</p>
+            </div>
+          </div>
+          <div className={`h-7 w-12 rounded-full transition-colors relative ${puppyEnabled ? "bg-primary" : "bg-muted"}`}>
+            <motion.div
+              className="h-5 w-5 rounded-full bg-white shadow absolute top-1"
+              animate={{ left: puppyEnabled ? 24 : 4 }}
+              transition={{ type: "spring", bounce: 0.3 }}
+            />
+          </div>
+        </button>
+        {puppyEnabled && (
+          <div className="flex justify-center pt-2">
+            <PuppyMascot mood="happy" size="lg" message="I'm here to help! 🐾" />
+          </div>
+        )}
+      </motion.div>
+
+
         <Button
           variant="gradient"
           className="w-full rounded-xl h-12 font-semibold shadow-glow"
