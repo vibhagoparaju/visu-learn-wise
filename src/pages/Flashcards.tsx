@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { streamChat } from "@/services/ai";
+import { awardFlashcardXP } from "@/services/xpService";
 import { toast } from "sonner";
 import EmptyState from "@/components/study/EmptyState";
 
@@ -67,6 +68,11 @@ const Flashcards = () => {
         review_count: card.review_count + 1,
       })
       .eq("id", card.id);
+
+    // Award XP for flashcard review
+    if (user) {
+      awardFlashcardXP(user.id).catch(console.error);
+    }
 
     setFlipped(false);
     if (currentIdx < cards.length - 1) {

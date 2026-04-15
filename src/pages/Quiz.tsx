@@ -4,6 +4,7 @@ import { HelpCircle, CheckCircle2, XCircle, ArrowRight, Loader2, Sparkles } from
 import { Button } from "@/components/ui/button";
 import { streamChat } from "@/services/ai";
 import { useAuth } from "@/hooks/useAuth";
+import { awardQuizXP, trackQuizProgress } from "@/services/xpService";
 import { toast } from "sonner";
 
 interface QuizQuestion {
@@ -14,7 +15,7 @@ interface QuizQuestion {
 }
 
 const Quiz = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [topic, setTopic] = useState("");
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentQ, setCurrentQ] = useState(0);
@@ -79,6 +80,11 @@ const Quiz = () => {
       setShowResult(false);
     } else {
       setQuizDone(true);
+      // Award XP and track progress on quiz completion
+      if (user) {
+        awardQuizXP(user.id, score, questions.length).catch(console.error);
+        trackQuizProgress(user.id, topic, score, questions.length).catch(console.error);
+      }
     }
   };
 
