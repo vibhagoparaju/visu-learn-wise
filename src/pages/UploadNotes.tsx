@@ -1,17 +1,17 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, FileText, CheckCircle2, Sparkles, BookOpen, FlaskConical, X, AlertCircle, ArrowRight, Loader2, Link2, Globe } from "lucide-react";
+import { Upload, FileText, CheckCircle2, Sparkles, BookOpen, FlaskConical, X, AlertCircle, ArrowRight, Loader2, Link2, Globe, Image as ImageIcon, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { analyzeDocument, analyzeUrl } from "@/services/ai";
+import { analyzeDocument, analyzeUrl, analyzeImage } from "@/services/ai";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { validateFile, checkRateLimit } from "@/lib/security";
 import UploadResultCard from "@/components/upload/UploadResultCard";
 
-type InputMode = "file" | "url";
+type InputMode = "file" | "image" | "url";
 
 interface UploadedItem {
   name: string;
@@ -22,6 +22,28 @@ interface UploadedItem {
   key_points?: string[];
   formulas?: string[];
   error?: string;
+  previewUrl?: string;
+}
+
+const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png"]);
+
+function isImageFile(file: File): boolean {
+  const ext = "." + file.name.split(".").pop()?.toLowerCase();
+  return IMAGE_EXTENSIONS.has(ext);
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Strip the data:...;base64, prefix
+      const base64 = result.split(",")[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 const UploadNotes = () => {
@@ -46,7 +68,12 @@ const UploadNotes = () => {
 
     const name = file.name;
     const size = `${(file.size / 1024).toFixed(1)} KB`;
-    setItems((prev) => [...prev, { name, size, status: "uploading" }]);
+    const isImage = isImageFile(file);
+
+    // Create preview URL for images
+    const previewUrl = isImage ? URL.createObjectURL(file) : undefined;
+
+    setItems((prev) => [...prev, { name, size, status: "uploading", previewUrl }]);
 
     try {
       const filePath = `${user!.id}/${Date.now()}_${name}`;
@@ -62,8 +89,23 @@ const UploadNotes = () => {
 
       setItems((prev) => prev.map((f) => (f.name === name ? { ...f, status: "processing" } : f)));
 
-      const text = await file.text();
-      const analysis = await analyzeDocument(text, name);
+      let analysis;
+
+      if (isImage) {
+        // Image path: convert to base64 and use multimodal AI
+        const base64 = await fileToBase64(file);
+        const mimeType = file.type || "image/jpeg";
+        analysis = await analyzeImage(base64, mimeType, name);
+
+        // Check if AI returned an error (no readable text)
+        if (analysis.error && (!analysis.topics || analysis.topics.length === 0)) {
+          throw new Error(analysis.error);
+        }
+      } else {
+        // Text file path
+        const text = await file.text();
+        analysis = await analyzeDocument(text, name);
+      }
 
       await supabase.from("documents").update({
         status: "done",
@@ -107,7 +149,6 @@ const UploadNotes = () => {
     try {
       const analysis = await analyzeUrl(url);
 
-      // Save to documents table
       await supabase.from("documents").insert({
         user_id: user!.id,
         file_name: analysis.title || displayName,
@@ -154,33 +195,42 @@ const UploadNotes = () => {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Upload Notes</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Upload files or paste a URL — VISU will extract topics, summaries, and key points ✨
+          Upload files, images, or paste a URL — VISU will extract topics, summaries, and key points ✨
         </p>
       </div>
 
       {/* Mode Toggle */}
-      <div className="flex gap-2 bg-muted rounded-full p-1 w-fit">
+      <div className="flex gap-1 bg-muted rounded-full p-1 w-fit">
         <button
           onClick={() => setMode("file")}
-          className={`flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-full transition-all ${
+          className={`flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-full transition-all ${
             mode === "file" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Upload className="h-4 w-4" />
-          File Upload
+          <Upload className="h-3.5 w-3.5" />
+          File
+        </button>
+        <button
+          onClick={() => setMode("image")}
+          className={`flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-full transition-all ${
+            mode === "image" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Camera className="h-3.5 w-3.5" />
+          Image
         </button>
         <button
           onClick={() => setMode("url")}
-          className={`flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-full transition-all ${
+          className={`flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-full transition-all ${
             mode === "url" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Link2 className="h-4 w-4" />
-          Paste URL
+          <Link2 className="h-3.5 w-3.5" />
+          URL
         </button>
       </div>
 
-      {/* File Drop Zone */}
+      {/* Upload Zones */}
       <AnimatePresence mode="wait">
         {mode === "file" ? (
           <motion.div
@@ -208,6 +258,35 @@ const UploadNotes = () => {
                   <span>Browse Files</span>
                 </Button>
                 <input type="file" multiple accept=".pdf,.docx,.txt" onChange={handleFileInput} className="hidden" />
+              </label>
+            </div>
+          </motion.div>
+        ) : mode === "image" ? (
+          <motion.div
+            key="image"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            whileHover={{ scale: 1.01 }}
+            onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={handleDrop}
+            className={`relative border-2 border-dashed rounded-2xl p-10 text-center transition-all ${
+              dragActive ? "border-primary bg-accent shadow-glow" : "border-border bg-card hover:border-primary/30"
+            }`}
+          >
+            <div className="absolute inset-0 rounded-2xl gradient-warm opacity-[0.04]" />
+            <div className="relative z-10">
+              <div className="h-16 w-16 rounded-2xl gradient-warm mx-auto flex items-center justify-center shadow-glow mb-4">
+                <ImageIcon className="h-7 w-7 text-primary-foreground" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">Upload notes, book pages, or screenshots</p>
+              <p className="text-xs text-muted-foreground mt-1">JPG, JPEG, PNG — we'll extract text & analyze</p>
+              <label>
+                <Button variant="outline" size="sm" className="mt-4 cursor-pointer rounded-full px-5" asChild>
+                  <span>Choose Image</span>
+                </Button>
+                <input type="file" multiple accept=".jpg,.jpeg,.png,image/jpeg,image/png" onChange={handleFileInput} className="hidden" />
               </label>
             </div>
           </motion.div>

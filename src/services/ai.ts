@@ -1,5 +1,6 @@
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 const ANALYZE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-document`;
+const ANALYZE_IMAGE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-image`;
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -125,6 +126,24 @@ export async function analyzeUrl(url: string) {
       Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
     },
     body: JSON.stringify({ url }),
+  });
+
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({}));
+    throw new Error(data.error || `Error ${resp.status}`);
+  }
+
+  return resp.json();
+}
+
+export async function analyzeImage(imageBase64: string, mimeType: string, fileName: string) {
+  const resp = await fetch(ANALYZE_IMAGE_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+    },
+    body: JSON.stringify({ imageBase64, mimeType, fileName }),
   });
 
   if (!resp.ok) {

@@ -35,9 +35,12 @@ const ALLOWED_FILE_TYPES = new Set([
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
   "text/plain",
+  "image/jpeg",
+  "image/png",
+  "image/jpg",
 ]);
 
-const ALLOWED_EXTENSIONS = new Set([".pdf", ".docx", ".txt"]);
+const ALLOWED_EXTENSIONS = new Set([".pdf", ".docx", ".txt", ".jpg", ".jpeg", ".png"]);
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
@@ -59,15 +62,15 @@ export function validateFile(file: File): FileValidationResult {
   // Check extension
   const ext = "." + file.name.split(".").pop()?.toLowerCase();
   if (!ALLOWED_EXTENSIONS.has(ext)) {
-    return { valid: false, error: `Invalid file type. Allowed: PDF, DOCX, TXT.` };
+    return { valid: false, error: `Invalid file type. Allowed: PDF, DOCX, TXT, JPG, PNG.` };
   }
 
   // Check MIME type (not fully reliable but adds a layer)
   if (file.type && !ALLOWED_FILE_TYPES.has(file.type)) {
-    // Some browsers don't set type correctly, so only reject if type IS set and wrong
     const isPlainTextLike = ext === ".txt" && (!file.type || file.type.startsWith("text/"));
-    if (!isPlainTextLike) {
-      return { valid: false, error: `Invalid file type. Allowed: PDF, DOCX, TXT.` };
+    const isImageLike = [".jpg", ".jpeg", ".png"].includes(ext) && file.type.startsWith("image/");
+    if (!isPlainTextLike && !isImageLike) {
+      return { valid: false, error: `Invalid file type. Allowed: PDF, DOCX, TXT, JPG, PNG.` };
     }
   }
 
