@@ -67,10 +67,10 @@ export function validateFile(file: File): FileValidationResult {
 
   // Check MIME type (not fully reliable but adds a layer)
   if (file.type && !ALLOWED_FILE_TYPES.has(file.type)) {
-    // Some browsers don't set type correctly, so only reject if type IS set and wrong
     const isPlainTextLike = ext === ".txt" && (!file.type || file.type.startsWith("text/"));
-    if (!isPlainTextLike) {
-      return { valid: false, error: `Invalid file type. Allowed: PDF, DOCX, TXT.` };
+    const isImageLike = [".jpg", ".jpeg", ".png"].includes(ext) && file.type.startsWith("image/");
+    if (!isPlainTextLike && !isImageLike) {
+      return { valid: false, error: `Invalid file type. Allowed: PDF, DOCX, TXT, JPG, PNG.` };
     }
   }
 
