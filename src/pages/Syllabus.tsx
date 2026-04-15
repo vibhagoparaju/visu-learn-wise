@@ -44,6 +44,34 @@ const boards = [
   { id: "classical", name: "Classical Learning", desc: "Traditional texts & wisdom", icon: "📜" },
 ];
 
+const universities = [
+  { id: "jntuk", name: "JNTUK", desc: "Jawaharlal Nehru Technological University, Kakinada" },
+  { id: "jntuh", name: "JNTUH", desc: "Jawaharlal Nehru Technological University, Hyderabad" },
+  { id: "au", name: "Andhra University", desc: "Andhra University, Visakhapatnam" },
+  { id: "svuce", name: "SVU", desc: "Sri Venkateswara University, Tirupati" },
+  { id: "ou", name: "Osmania University", desc: "Osmania University, Hyderabad" },
+  { id: "du", name: "Delhi University", desc: "University of Delhi" },
+  { id: "mu", name: "Mumbai University", desc: "University of Mumbai" },
+  { id: "other", name: "Other University", desc: "Enter your university name" },
+];
+
+const streams = [
+  "Computer Science & Engineering",
+  "Electronics & Communication",
+  "Electrical Engineering",
+  "Mechanical Engineering",
+  "Civil Engineering",
+  "Information Technology",
+  "Chemical Engineering",
+  "Biotechnology",
+  "B.Sc Computer Science",
+  "B.Sc Mathematics",
+  "B.Sc Physics",
+  "BBA",
+  "B.Com",
+  "BA English",
+];
+
 const gradesByBoard: Record<string, string[]> = {
   cbse: ["Class 6", "Class 7", "Class 8", "Class 9", "Class 10", "Class 11", "Class 12"],
   icse: ["Class 6", "Class 7", "Class 8", "Class 9", "Class 10", "Class 11", "Class 12"],
