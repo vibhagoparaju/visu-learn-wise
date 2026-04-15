@@ -12,20 +12,24 @@ interface PuppyMascotProps {
 
 const sizeMap = { sm: 56, md: 80, lg: 110 };
 
-const moodAnimations: Record<PuppyMood, object> = {
-  idle: { y: [0, -4, 0] },
-  happy: { y: [0, -6, 0], rotate: [0, -3, 0, 3, 0] },
-  thinking: { y: [0, -2, 0], scale: [1, 1.02, 1] },
-  encouraging: { y: [0, -3, 0], scale: [1, 1.05, 1] },
-  relaxing: { rotate: [0, 2, 0, -2, 0] },
+const getMoodAnimation = (mood: PuppyMood) => {
+  switch (mood) {
+    case "happy": return { y: [0, -6, 0], rotate: [0, -3, 0, 3, 0] };
+    case "thinking": return { y: [0, -2, 0], scale: [1, 1.02, 1] };
+    case "encouraging": return { y: [0, -3, 0], scale: [1, 1.05, 1] };
+    case "relaxing": return { rotate: [0, 2, 0, -2, 0] };
+    default: return { y: [0, -4, 0] };
+  }
 };
 
-const moodTransitions: Record<PuppyMood, object> = {
-  idle: { duration: 2.5, repeat: Infinity, ease: "easeInOut" },
-  happy: { duration: 0.6, repeat: Infinity },
-  thinking: { duration: 1.8, repeat: Infinity, ease: "easeInOut" },
-  encouraging: { duration: 1.2, repeat: Infinity, ease: "easeInOut" },
-  relaxing: { duration: 3, repeat: Infinity, ease: "easeInOut" },
+const getMoodTransition = (mood: PuppyMood) => {
+  switch (mood) {
+    case "happy": return { duration: 0.6, repeat: Infinity };
+    case "thinking": return { duration: 1.8, repeat: Infinity, ease: "easeInOut" as const };
+    case "encouraging": return { duration: 1.2, repeat: Infinity, ease: "easeInOut" as const };
+    case "relaxing": return { duration: 3, repeat: Infinity, ease: "easeInOut" as const };
+    default: return { duration: 2.5, repeat: Infinity, ease: "easeInOut" as const };
+  }
 };
 
 const PuppyMascot = ({ mood = "idle", size = "md", className = "", message }: PuppyMascotProps) => {
@@ -34,8 +38,8 @@ const PuppyMascot = ({ mood = "idle", size = "md", className = "", message }: Pu
   return (
     <div className={`flex flex-col items-center gap-1.5 ${className}`}>
       <motion.div
-        animate={moodAnimations[mood]}
-        transition={moodTransitions[mood]}
+        animate={getMoodAnimation(mood)}
+        transition={getMoodTransition(mood)}
         className="relative"
       >
         <img
