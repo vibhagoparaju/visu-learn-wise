@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { awardStudyXP } from "@/services/xpService";
+import { sanitizeChatInput, checkRateLimit, wrapUserInput } from "@/lib/security";
 import WellnessReminder from "@/components/study/WellnessReminder";
 import VisualExplanation from "@/components/study/VisualExplanation";
 import VideoExplanation from "@/components/study/VideoExplanation";
@@ -133,9 +134,15 @@ const Study = () => {
   }, [user, urlTopic]);
 
   const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+    const sanitized = sanitizeChatInput(input);
+    if (!sanitized || isLoading) return;
 
-    let userContent = input.trim();
+    if (!checkRateLimit("chat", 15, 60000)) {
+      toast.error("Slow down! Please wait a moment before sending another message.");
+      return;
+    }
+
+    let userContent = wrapUserInput(sanitized);
     if (mode === "teachback") userContent = `[Teach Back] ${userContent}`;
     else if (mode === "quiz") userContent = `[Quiz Mode] Generate a quiz question about: ${userContent}`;
     else if (mode === "lazy") userContent = `[Lazy Mode] Give a super quick 2-min lesson on: ${userContent}`;

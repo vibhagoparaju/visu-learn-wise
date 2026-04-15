@@ -6,6 +6,7 @@ import { streamChat } from "@/services/ai";
 import { useAuth } from "@/hooks/useAuth";
 import { awardQuizXP, trackQuizProgress } from "@/services/xpService";
 import { toast } from "sonner";
+import { sanitizeTopicInput, checkRateLimit } from "@/lib/security";
 
 interface QuizQuestion {
   question: string;
@@ -26,7 +27,14 @@ const Quiz = () => {
   const [quizDone, setQuizDone] = useState(false);
 
   const generateQuiz = async () => {
-    if (!topic.trim()) return;
+    const sanitizedTopic = sanitizeTopicInput(topic);
+    if (!sanitizedTopic) return;
+
+    if (!checkRateLimit("quiz", 5, 60000)) {
+      toast.error("Too many quiz requests. Please wait a moment.");
+      return;
+    }
+
     setLoading(true);
     setQuestions([]);
     setCurrentQ(0);

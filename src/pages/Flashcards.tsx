@@ -8,6 +8,7 @@ import { streamChat } from "@/services/ai";
 import { awardFlashcardXP } from "@/services/xpService";
 import { toast } from "sonner";
 import EmptyState from "@/components/study/EmptyState";
+import { sanitizeTopicInput, checkRateLimit } from "@/lib/security";
 
 interface Flashcard {
   id: string;
@@ -91,7 +92,14 @@ const Flashcards = () => {
   };
 
   const generateCards = async () => {
-    if (!genTopic.trim() || !user) return;
+    const sanitizedTopic = sanitizeTopicInput(genTopic);
+    if (!sanitizedTopic || !user) return;
+
+    if (!checkRateLimit("flashcard-gen", 5, 60000)) {
+      toast.error("Too many requests. Please wait a moment.");
+      return;
+    }
+
     setGenerating(true);
 
     let content = "";

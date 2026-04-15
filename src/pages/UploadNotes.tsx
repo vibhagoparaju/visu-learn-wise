@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { analyzeDocument } from "@/services/ai";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { validateFile, checkRateLimit } from "@/lib/security";
 
 interface UploadedFile {
   name: string;
@@ -26,6 +27,18 @@ const UploadNotes = () => {
   const [dragActive, setDragActive] = useState(false);
 
   const processFile = async (file: File) => {
+    // Validate file before processing
+    const validation = validateFile(file);
+    if (!validation.valid) {
+      toast.error(validation.error || "Invalid file");
+      return;
+    }
+
+    if (!checkRateLimit("upload", 5, 60000)) {
+      toast.error("Too many uploads. Please wait a moment.");
+      return;
+    }
+
     const name = file.name;
     const size = `${(file.size / 1024).toFixed(1)} KB`;
 
