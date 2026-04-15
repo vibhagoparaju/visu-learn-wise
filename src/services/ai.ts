@@ -114,3 +114,23 @@ export async function analyzeDocument(text: string, fileName: string) {
 
   return resp.json();
 }
+
+const EXTRACT_URL_ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-url`;
+
+export async function analyzeUrl(url: string) {
+  const resp = await fetch(EXTRACT_URL_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+    },
+    body: JSON.stringify({ url }),
+  });
+
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({}));
+    throw new Error(data.error || `Error ${resp.status}`);
+  }
+
+  return resp.json();
+}
