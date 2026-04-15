@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import EmptyState from "@/components/study/EmptyState";
+import OnboardingWalkthrough from "@/components/onboarding/OnboardingWalkthrough";
 import { generateDailyPlan, saveDailyPlan } from "@/services/studyPlanner";
 
 interface StudyTask {
