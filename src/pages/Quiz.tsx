@@ -4,6 +4,7 @@ import { HelpCircle, CheckCircle2, XCircle, ArrowRight, Loader2, Sparkles } from
 import { Button } from "@/components/ui/button";
 import { streamChat } from "@/services/ai";
 import { useAuth } from "@/hooks/useAuth";
+import { usePuppy } from "@/hooks/usePuppy";
 import { awardQuizXP, trackQuizProgress } from "@/services/xpService";
 import { toast } from "sonner";
 import { sanitizeTopicInput, checkRateLimit } from "@/lib/security";
@@ -17,6 +18,7 @@ interface QuizQuestion {
 
 const Quiz = () => {
   const { profile, user } = useAuth();
+  const { showMessage: showPuppy } = usePuppy();
   const [topic, setTopic] = useState("");
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentQ, setCurrentQ] = useState(0);
@@ -78,6 +80,9 @@ const Quiz = () => {
     setShowResult(true);
     if (idx === questions[currentQ].correct) {
       setScore((s) => s + 1);
+      showPuppy("Correct! You're amazing! 🎉", "happy", 3000);
+    } else {
+      showPuppy("Don't worry, you'll get it next time! 💪", "encouraging", 3000);
     }
   };
 
