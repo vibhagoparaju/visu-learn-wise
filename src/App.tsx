@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
+import { PuppyProvider } from "@/hooks/usePuppy";
+import FloatingPuppy from "@/components/mascot/FloatingPuppy";
 import AppLayout from "./components/layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import Study from "./pages/Study";
@@ -57,6 +59,8 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+            <PuppyProvider>
+              <FloatingPuppy />
             <Routes>
               <Route path="/auth" element={<AuthRoute />} />
               <Route path="/reset-password" element={<ResetPassword />} />
@@ -83,6 +87,7 @@ const App = () => (
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </PuppyProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>

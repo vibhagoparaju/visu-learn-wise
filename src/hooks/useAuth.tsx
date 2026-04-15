@@ -15,6 +15,7 @@ interface Profile {
   last_study_date: string | null;
   selected_board: string | null;
   selected_grade: string | null;
+  puppy_enabled: boolean;
 }
 
 interface AuthContextType {

@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN puppy_enabled boolean DEFAULT true;
