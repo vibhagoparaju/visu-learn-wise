@@ -1,5 +1,6 @@
 import { useState, FormEvent } from "react";
 import { motion } from "framer-motion";
+import puppyImage from "@/assets/puppy-mascot.png";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,11 +92,18 @@ const Auth = () => {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
-        {/* Logo */}
+        {/* Mascot + Logo */}
         <div className="text-center mb-8">
-          <div className="h-16 w-16 rounded-2xl gradient-primary flex items-center justify-center mx-auto shadow-glow mb-4">
-            <Sparkles className="h-8 w-8 text-primary-foreground" />
-          </div>
+          <motion.img
+            src={puppyImage}
+            alt="VISU study buddy"
+            width={88}
+            height={88}
+            className="mx-auto mb-3 drop-shadow-md"
+            animate={{ y: [0, -5, 0] }}
+            transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+            draggable={false}
+          />
           <h1 className="text-3xl font-bold text-gradient font-display">VISU</h1>
           <p className="text-sm text-muted-foreground mt-1">Your Personal AI Tutor</p>
         </div>
