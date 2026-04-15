@@ -125,6 +125,7 @@ const Dashboard = () => {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-8 pb-24 md:pb-8">
+      <OnboardingWalkthrough />
       {/* Greeting */}
       <motion.div variants={item}>
         <div className="flex items-center justify-between">
