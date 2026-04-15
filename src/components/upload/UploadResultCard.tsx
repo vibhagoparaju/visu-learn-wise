@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { FileText, CheckCircle2, Sparkles, BookOpen, FlaskConical, X, AlertCircle, ArrowRight, Loader2 } from "lucide-react";
+import { FileText, CheckCircle2, Sparkles, BookOpen, FlaskConical, X, AlertCircle, ArrowRight, Loader2, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface UploadedItem {
@@ -11,6 +11,12 @@ interface UploadedItem {
   key_points?: string[];
   formulas?: string[];
   error?: string;
+  previewUrl?: string;
+}
+
+const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png"];
+function isImageName(name: string) {
+  return IMAGE_EXTENSIONS.some((ext) => name.toLowerCase().endsWith(ext));
 }
 
 interface Props {
@@ -28,9 +34,19 @@ const UploadResultCard = ({ item: f, onRemove, onStudyTopic }: Props) => (
   >
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-accent flex items-center justify-center">
-          <FileText className="h-5 w-5 text-primary" />
-        </div>
+        {f.previewUrl ? (
+          <div className="h-10 w-10 rounded-xl overflow-hidden flex-shrink-0">
+            <img src={f.previewUrl} alt={f.name} className="h-full w-full object-cover" />
+          </div>
+        ) : (
+          <div className="h-10 w-10 rounded-xl bg-accent flex items-center justify-center flex-shrink-0">
+            {isImageName(f.name) ? (
+              <ImageIcon className="h-5 w-5 text-primary" />
+            ) : (
+              <FileText className="h-5 w-5 text-primary" />
+            )}
+          </div>
+        )}
         <div>
           <p className="text-sm font-semibold text-foreground">{f.name}</p>
           <p className="text-xs text-muted-foreground truncate max-w-[200px]">{f.size}</p>
@@ -44,7 +60,8 @@ const UploadResultCard = ({ item: f, onRemove, onStudyTopic }: Props) => (
         )}
         {f.status === "processing" && (
           <span className="flex items-center gap-1 text-xs text-primary font-medium">
-            <Sparkles className="h-3 w-3 animate-spin" /> Analyzing with AI...
+            <Sparkles className="h-3 w-3 animate-spin" />
+            {isImageName(f.name) ? "Analyzing image…" : "Analyzing with AI..."}
           </span>
         )}
         {f.status === "done" && <CheckCircle2 className="h-5 w-5 text-green-500" />}
