@@ -56,7 +56,7 @@ const modeConfig: Record<StudyMode, { label: string; icon: any; desc: string }> 
 
 const Study = () => {
   const { profile, user } = useAuth();
-  const { showMessage: showPuppy } = usePuppy();
+  const { showMessage: showPuppy, setMood: setPuppyMood } = usePuppy();
   const { topic: urlTopic } = useParams();
   const tutorName = profile?.tutor_name || "VISU";
   const difficulty = profile?.difficulty_level || "beginner";
@@ -154,6 +154,7 @@ const Study = () => {
     setMessages(newMessages);
     setInput("");
     setIsLoading(true);
+    setPuppyMood("thinking");
 
     let assistantContent = "";
 
