@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Upload, MessageSquare, CheckCircle2, Circle, LogOut, BookOpen, Rocket, RefreshCw, Layers, ArrowRight, FileText, AlertTriangle } from "lucide-react";
+import { Upload, MessageSquare, CheckCircle2, Circle, LogOut, BookOpen, Rocket, RefreshCw, Layers, ArrowRight, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
