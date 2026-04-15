@@ -368,6 +368,57 @@ const Syllabus = () => {
           </motion.div>
         )}
 
+        {/* University Selection */}
+        {step === "university" && (
+          <motion.div key="university" variants={container} initial="hidden" animate="show" exit={{ opacity: 0 }} className="grid gap-3">
+            {universities.map((uni) => (
+              <motion.button
+                key={uni.id}
+                variants={item}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  if (uni.id === "other") {
+                    const name = customUniversity || prompt("Enter your university name:");
+                    if (name) {
+                      setSelectedUniversity(name);
+                      setStep("stream");
+                    }
+                  } else {
+                    selectUniversity(uni.id);
+                  }
+                }}
+                className="flex items-center gap-4 bg-card rounded-2xl p-4 shadow-card border border-border hover:border-primary/30 transition-all text-left"
+              >
+                <div className="h-12 w-12 rounded-xl bg-accent flex items-center justify-center text-2xl flex-shrink-0">
+                  🎓
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{uni.name}</p>
+                  <p className="text-xs text-muted-foreground">{uni.desc}</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
+
+        {/* Stream Selection */}
+        {step === "stream" && (
+          <motion.div key="stream" variants={container} initial="hidden" animate="show" exit={{ opacity: 0 }} className="grid grid-cols-2 gap-3">
+            {streams.map((stream) => (
+              <motion.button
+                key={stream}
+                variants={item}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => selectStream(stream)}
+                className="bg-card rounded-xl p-4 shadow-card border border-border hover:border-primary/30 transition-all text-center"
+              >
+                <p className="text-sm font-semibold text-foreground">{stream}</p>
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
+
         {/* Grade Selection */}
         {step === "grade" && (
           <motion.div key="grade" variants={container} initial="hidden" animate="show" exit={{ opacity: 0 }} className="grid grid-cols-2 sm:grid-cols-3 gap-3">
