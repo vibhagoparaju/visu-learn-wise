@@ -104,7 +104,7 @@ const difficultyColors: Record<string, string> = {
   advanced: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
-type Step = "board" | "grade" | "subject" | "chapter" | "topic";
+type Step = "board" | "university" | "stream" | "grade" | "subject" | "chapter" | "topic";
 
 const Syllabus = () => {
   const navigate = useNavigate();
