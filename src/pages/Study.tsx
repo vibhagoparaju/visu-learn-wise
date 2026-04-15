@@ -4,6 +4,7 @@ import { Send, Sparkles, User, Maximize2, Minimize2, MessageSquareText, Lightbul
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useVoice } from "@/hooks/useVoice";
+import { usePuppy } from "@/hooks/usePuppy";
 import { streamChat } from "@/services/ai";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -55,6 +56,7 @@ const modeConfig: Record<StudyMode, { label: string; icon: any; desc: string }> 
 
 const Study = () => {
   const { profile, user } = useAuth();
+  const { showMessage: showPuppy } = usePuppy();
   const { topic: urlTopic } = useParams();
   const tutorName = profile?.tutor_name || "VISU";
   const difficulty = profile?.difficulty_level || "beginner";
@@ -183,7 +185,7 @@ const Study = () => {
             )
           );
           setIsLoading(false);
-
+          showPuppy("Great question! Keep going 📚", "happy", 3000);
           // Track study progress
           if (user && assistantContent.length > 50) {
             const topicName = urlTopic ? decodeURIComponent(urlTopic) : userContent.replace(/^\[(.*?)\]\s*/, "").slice(0, 100);
