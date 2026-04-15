@@ -119,6 +119,9 @@ const Syllabus = () => {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedUniversity, setSelectedUniversity] = useState("");
+  const [selectedStream, setSelectedStream] = useState("");
+  const [customUniversity, setCustomUniversity] = useState("");
 
   useEffect(() => {
     if (profile?.selected_board && profile?.selected_grade) {
@@ -151,14 +154,17 @@ const Syllabus = () => {
     return resp.json();
   };
 
-  const fetchSubjects = async (board: string, grade: string) => {
+  const fetchSubjects = async (board: string, grade: string, university?: string, stream?: string) => {
     if (board === "classical") {
       setSubjects(classicalSubjects);
       return;
     }
     setLoading(true);
     try {
-      const data = await fetchData({ board, grade });
+      const body: Record<string, string> = { board, grade };
+      if (university) body.university = university;
+      if (stream) body.stream = stream;
+      const data = await fetchData(body);
       setSubjects(data.subjects || []);
     } catch (e: any) {
       toast.error(e.message || "Failed to load subjects");
@@ -193,14 +199,30 @@ const Syllabus = () => {
 
   const selectBoard = (boardId: string) => {
     setSelectedBoard(boardId);
+    if (boardId === "university") {
+      setStep("university");
+    } else {
+      setStep("grade");
+    }
+  };
+
+  const selectUniversity = (uniId: string) => {
+    const uni = universities.find((u) => u.id === uniId);
+    setSelectedUniversity(uni?.name || uniId);
+    setStep("stream");
+  };
+
+  const selectStream = (stream: string) => {
+    setSelectedStream(stream);
     setStep("grade");
   };
 
   const selectGrade = (grade: string) => {
     setSelectedGrade(grade);
-    savePreference(selectedBoard, grade);
+    const boardLabel = selectedBoard === "university" ? `${selectedUniversity} - ${selectedStream}` : selectedBoard;
+    savePreference(boardLabel, grade);
     setStep("subject");
-    fetchSubjects(selectedBoard, grade);
+    fetchSubjects(selectedBoard, grade, selectedUniversity, selectedStream);
   };
 
   const selectSubject = (subject: string) => {
@@ -224,7 +246,10 @@ const Syllabus = () => {
     if (step === "topic") { setStep("chapter"); setTopics([]); }
     else if (step === "chapter") { setStep("subject"); setChapters([]); }
     else if (step === "subject") { setStep("grade"); setSubjects([]); }
+    else if (step === "grade" && selectedBoard === "university") { setStep("stream"); }
     else if (step === "grade") setStep("board");
+    else if (step === "stream") setStep("university");
+    else if (step === "university") setStep("board");
   };
 
   const boardInfo = boards.find((b) => b.id === selectedBoard);
