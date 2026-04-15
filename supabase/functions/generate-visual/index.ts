@@ -26,18 +26,27 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const prompt = `Create a simple, clean educational diagram or illustration that visually explains the concept: "${topic}".
+    // Classify the visual type from the explanation
+    const classifyPrompt = explanation
+      ? `Based on this explanation, what type of visual would best represent it? Choose ONE: flow diagram, concept breakdown, comparison chart, or relationship map.\n\nExplanation: ${explanation.slice(0, 400)}`
+      : "";
 
-${explanation ? `Context from the explanation: ${explanation.slice(0, 500)}` : ""}
+    const prompt = `You are an expert educational illustrator. Create a SINGLE, focused visual that directly represents this concept: "${topic}".
 
-Requirements:
-- Simple, minimal educational diagram or illustration
-- Use clear labels and arrows where helpful
-- White or light background
-- No decorative elements — purely educational
-- Easy to understand at a glance
-- Use color to distinguish different concepts
-- Include key terms as text labels in the image`;
+${explanation ? `The AI tutor explained it as follows (your visual MUST match this explanation exactly):\n"""${explanation.slice(0, 600)}"""\n` : ""}
+${classifyPrompt ? `First, decide which visual type fits best: flow diagram, concept breakdown, comparison chart, or relationship map. Then generate that specific type.\n` : ""}
+
+STRICT RULES:
+1. ACCURACY — Every element in the visual must come directly from the explanation above. Do NOT add information that isn't mentioned.
+2. ONE IDEA — Show only ONE main concept per visual. No side topics.
+3. MINIMAL ELEMENTS — Maximum 5-7 labeled elements. Fewer is better.
+4. CLEAR LABELS — Every box, arrow, or shape must have a short, readable text label.
+5. STEP-BY-STEP — If it's a process, show numbered steps with arrows (1 → 2 → 3).
+6. WHITE BACKGROUND — Clean white background, no textures or gradients.
+7. HIGH CONTRAST — Use bold, distinct colors (blue, green, orange) to separate concepts. Black text on light backgrounds.
+8. NO DECORATION — Zero decorative elements. No icons, emojis, or clip art. Purely informational.
+9. READABLE IN 5 SECONDS — A student should understand the core idea within seconds.
+10. HIERARCHY — The most important concept should be visually largest or centered.`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
