@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { RotateCcw, ThumbsUp, ThumbsDown, Plus, Sparkles, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { usePuppy } from "@/hooks/usePuppy";
 import { supabase } from "@/integrations/supabase/client";
 import { streamChat } from "@/services/ai";
 import { awardFlashcardXP } from "@/services/xpService";
@@ -22,6 +23,7 @@ interface Flashcard {
 
 const Flashcards = () => {
   const { user } = useAuth();
+  const { showMessage: showPuppy } = usePuppy();
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -78,7 +80,10 @@ const Flashcards = () => {
     setFlipped(false);
     if (currentIdx < cards.length - 1) {
       setCurrentIdx((i) => i + 1);
+      if (correct) showPuppy("Nice one! 🎉", "happy", 2500);
+      else showPuppy("You'll get it next time! 💪", "encouraging", 2500);
     } else {
+      showPuppy("All done! Great session! 🌟", "happy", 4000);
       toast.success("All cards reviewed! 🎉");
       fetchCards();
     }
@@ -204,7 +209,7 @@ const Flashcards = () => {
           {/* Flashcard */}
           <div className="relative" style={{ perspective: "1000px" }}>
             <motion.div
-              onClick={() => setFlipped(!flipped)}
+              onClick={() => { setFlipped(!flipped); if (!flipped) showPuppy("Let's see if you know this! 🤔", "encouraging", 2500); }}
               className="cursor-pointer"
               animate={{ rotateY: flipped ? 180 : 0 }}
               transition={{ duration: 0.5, type: "spring" }}
