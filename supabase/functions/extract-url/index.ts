@@ -6,6 +6,21 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const PRIMARY_MODEL = "google/gemini-3-flash-preview";
+const FALLBACK_MODEL = "google/gemini-2.5-flash";
+const TIMEOUT_MS = 40_000;
+const MAX_RETRIES = 2;
+
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -21,13 +36,10 @@ serve(async (req) => {
       );
     }
 
-    // Validate URL format
     let parsedUrl: URL;
     try {
       parsedUrl = new URL(url);
-      if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-        throw new Error("Invalid protocol");
-      }
+      if (!["http:", "https:"].includes(parsedUrl.protocol)) throw new Error("Invalid protocol");
     } catch {
       return new Response(
         JSON.stringify({ error: "Invalid URL format. Please enter a valid http/https URL." }),
@@ -35,11 +47,10 @@ serve(async (req) => {
       );
     }
 
-    // Fetch the webpage
     const pageResp = await fetch(parsedUrl.toString(), {
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; VISU-Bot/1.0)",
-        "Accept": "text/html,application/xhtml+xml,text/plain",
+        Accept: "text/html,application/xhtml+xml,text/plain",
       },
       redirect: "follow",
     });
@@ -61,29 +72,23 @@ serve(async (req) => {
 
     const html = await pageResp.text();
 
-    // Strip HTML to extract readable text
     let text = html
-      // Remove script and style blocks
       .replace(/<script[\s\S]*?<\/script>/gi, "")
       .replace(/<style[\s\S]*?<\/style>/gi, "")
       .replace(/<nav[\s\S]*?<\/nav>/gi, "")
       .replace(/<footer[\s\S]*?<\/footer>/gi, "")
       .replace(/<header[\s\S]*?<\/header>/gi, "")
       .replace(/<aside[\s\S]*?<\/aside>/gi, "")
-      // Remove all remaining tags
       .replace(/<[^>]+>/g, " ")
-      // Decode common entities
       .replace(/&nbsp;/g, " ")
       .replace(/&amp;/g, "&")
       .replace(/&lt;/g, "<")
       .replace(/&gt;/g, ">")
       .replace(/&quot;/g, '"')
       .replace(/&#39;/g, "'")
-      // Collapse whitespace
       .replace(/\s+/g, " ")
       .trim();
 
-    // Limit to 50k chars
     text = text.slice(0, 50000);
 
     if (text.length < 50) {
@@ -93,26 +98,13 @@ serve(async (req) => {
       );
     }
 
-    // Get page title
     const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
     const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").trim().slice(0, 255) : parsedUrl.hostname;
 
-    // Now analyze with AI (reuse same logic as analyze-document)
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          {
-            role: "system",
-            content: `You are an AI content analyzer for a study platform. Analyze the provided webpage text and extract structured learning content.
+    const systemPrompt = `You are an AI content analyzer for a study platform. Analyze the provided webpage text and extract structured learning content.
 
 Return a JSON object with exactly this structure:
 {
@@ -122,46 +114,81 @@ Return a JSON object with exactly this structure:
   "formulas": ["formula1", "formula2", ...]
 }
 
-Be thorough but concise. Extract all key topics, important points, and any mathematical/scientific formulas.
-Return ONLY the JSON object, no markdown formatting or code blocks.`,
-          },
+Be thorough but concise. Return ONLY the JSON object, no markdown formatting or code blocks.`;
+
+    const models = [PRIMARY_MODEL, FALLBACK_MODEL];
+    let lastError = "Failed to analyze URL content";
+
+    for (let attempt = 0; attempt < MAX_RETRIES + 1; attempt++) {
+      const model = attempt === 0 ? models[0] : models[1];
+      try {
+        const aiResp = await fetchWithTimeout(
+          "https://ai.gateway.lovable.dev/v1/chat/completions",
           {
-            role: "user",
-            content: `Analyze this webpage titled "${title}":\n\n${text.substring(0, 15000)}`,
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: `Analyze this webpage titled "${title}":\n\n${text.substring(0, 15000)}` },
+              ],
+            }),
           },
-        ],
-      }),
-    });
-
-    if (!aiResp.ok) {
-      if (aiResp.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limited. Please try again." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          TIMEOUT_MS
         );
+
+        if (aiResp.status === 429) {
+          return new Response(
+            JSON.stringify({ error: "Rate limited. Please try again." }),
+            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (aiResp.status === 402) {
+          return new Response(
+            JSON.stringify({ error: "AI credits exhausted." }),
+            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        if (aiResp.ok) {
+          const aiData = await aiResp.json();
+          const content = aiData.choices?.[0]?.message?.content || "{}";
+          let parsed;
+          try {
+            const cleaned = content.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
+            parsed = JSON.parse(cleaned);
+          } catch {
+            parsed = { topics: [], summary: content, key_points: [], formulas: [] };
+          }
+          return new Response(
+            JSON.stringify({ ...parsed, title, url: parsedUrl.toString() }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        lastError = `AI service error (${aiResp.status})`;
+      } catch (e: any) {
+        lastError = e.name === "AbortError" ? "Analysis timed out. Please try again." : "AI service temporarily unavailable";
+        console.error(`Extract-url attempt ${attempt + 1} failed (${model}):`, e.message || e);
       }
-      throw new Error(`AI gateway error: ${aiResp.status}`);
-    }
 
-    const aiData = await aiResp.json();
-    const content = aiData.choices?.[0]?.message?.content || "{}";
-
-    let parsed;
-    try {
-      const cleaned = content.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
-      parsed = JSON.parse(cleaned);
-    } catch {
-      parsed = { topics: [], summary: content, key_points: [], formulas: [] };
+      if (attempt < MAX_RETRIES) {
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+      }
     }
 
     return new Response(
-      JSON.stringify({ ...parsed, title, url: parsedUrl.toString() }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: lastError }),
+      { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
     console.error("Extract URL error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: "Something went wrong. Please try again." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

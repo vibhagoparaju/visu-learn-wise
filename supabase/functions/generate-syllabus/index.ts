@@ -6,6 +6,21 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const PRIMARY_MODEL = "google/gemini-3-flash-preview";
+const FALLBACK_MODEL = "google/gemini-2.5-flash";
+const TIMEOUT_MS = 40_000;
+const MAX_RETRIES = 2;
+
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -22,14 +37,11 @@ serve(async (req) => {
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     let prompt: string;
 
     if (chapter) {
-      // Level 3: Get subtopics for a specific chapter
       prompt = `You are an expert curriculum designer with deep knowledge of the ${board} education system.
 
 Generate a detailed list of subtopics for:
@@ -55,7 +67,6 @@ Return a JSON object:
 
 Include 6-15 subtopics depending on the chapter size. Return ONLY valid JSON, no markdown.`;
     } else if (subject) {
-      // Level 2: Get chapters for a specific subject
       prompt = `You are an expert curriculum designer with deep knowledge of the ${board} education system.
 
 Generate the COMPLETE chapter list for:
@@ -65,7 +76,7 @@ Subject: ${subject}
 
 IMPORTANT RULES:
 - List ALL chapters exactly as they appear in the official ${board} ${grade} ${subject} textbook
-- Use EXACT chapter names from the official syllabus (e.g., for CBSE Class 10 Science: "Chemical Reactions and Equations", "Acids, Bases and Salts", etc.)
+- Use EXACT chapter names from the official syllabus
 - Maintain the EXACT order chapters appear in the textbook
 - Do NOT combine or skip chapters
 - Include the chapter number
@@ -80,7 +91,6 @@ Return a JSON object:
 
 Return ONLY valid JSON, no markdown.`;
     } else {
-      // Level 1: Get subjects
       const uniContext = university ? `University: ${university}\nStream/Branch: ${stream || "General"}\n` : "";
       prompt = `You are an expert curriculum designer with deep knowledge of the ${board} education system.
 
@@ -106,66 +116,76 @@ Return a JSON object:
 Include 6-12 subjects. Return ONLY valid JSON, no markdown.`;
     }
 
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
-            { role: "system", content: "You are an expert educational curriculum specialist. You have precise knowledge of Indian education boards (CBSE, ICSE, State Boards) and university syllabi. Always return accurate, complete, and well-structured syllabus data. Return only valid JSON, no markdown code blocks." },
-            { role: "user", content: prompt },
-          ],
-        }),
-      }
-    );
+    const models = [PRIMARY_MODEL, FALLBACK_MODEL];
+    let lastError = "Failed to generate syllabus";
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limited. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    for (let attempt = 0; attempt < MAX_RETRIES + 1; attempt++) {
+      const model = attempt === 0 ? models[0] : models[1];
+      try {
+        const response = await fetchWithTimeout(
+          "https://ai.gateway.lovable.dev/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: "system", content: "You are an expert educational curriculum specialist. You have precise knowledge of Indian education boards (CBSE, ICSE, State Boards) and university syllabi. Always return accurate, complete, and well-structured syllabus data. Return only valid JSON, no markdown code blocks." },
+                { role: "user", content: prompt },
+              ],
+            }),
+          },
+          TIMEOUT_MS
         );
+
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ error: "Rate limited. Please try again in a moment." }),
+            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (response.status === 402) {
+          return new Response(
+            JSON.stringify({ error: "AI credits exhausted. Please add funds." }),
+            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        if (response.ok) {
+          const data = await response.json();
+          const content = data.choices?.[0]?.message?.content || "";
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            return new Response(JSON.stringify(parsed), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          lastError = "Failed to parse syllabus data";
+        } else {
+          lastError = `AI service error (${response.status})`;
+        }
+      } catch (e: any) {
+        lastError = e.name === "AbortError" ? "Request timed out. Please try again." : "AI service temporarily unavailable";
+        console.error(`Generate-syllabus attempt ${attempt + 1} failed (${model}):`, e.message || e);
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add funds." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+
+      if (attempt < MAX_RETRIES) {
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
       }
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      return new Response(
-        JSON.stringify({ error: "Failed to generate syllabus" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
     }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
-
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return new Response(
-        JSON.stringify({ error: "Failed to parse syllabus data" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
 
     return new Response(
-      JSON.stringify(parsed),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: lastError }),
+      { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
     console.error("generate-syllabus error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: "Something went wrong. Please try again." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
