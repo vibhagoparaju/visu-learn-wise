@@ -81,7 +81,7 @@ const VisualExplanation = ({ content, topic }: VisualExplanationProps) => {
           <AlertCircle className="h-5 w-5 text-destructive" />
         </div>
         <p className="text-sm text-muted-foreground text-center">{error}</p>
-        <Button variant="outline" size="sm" onClick={generateVisual} className="rounded-lg">
+        <Button variant="outline" size="sm" onClick={fetchVisual} className="rounded-lg">
           <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
           Try again
         </Button>
@@ -119,7 +119,7 @@ const VisualExplanation = ({ content, topic }: VisualExplanationProps) => {
         <Button
           variant="ghost"
           size="sm"
-          onClick={generateVisual}
+          onClick={fetchVisual}
           disabled={loading}
           className="text-xs rounded-lg"
         >
