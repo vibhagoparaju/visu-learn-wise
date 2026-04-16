@@ -6,8 +6,9 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const PRIMARY_MODEL = "google/gemini-3.1-flash-image-preview";
-const FALLBACK_MODEL = "google/gemini-3-pro-image-preview";
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+const PRIMARY_MODEL = "gemini-2.0-flash-exp-image-generation";
+const FALLBACK_MODEL = "gemini-2.0-flash";
 const TIMEOUT_MS = 60_000;
 const MAX_RETRIES = 2;
 
@@ -36,8 +37,8 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
     const classifyPrompt = explanation
       ? `Based on this explanation, what type of visual would best represent it? Choose ONE: flow diagram, concept breakdown, comparison chart, or relationship map.\n\nExplanation: ${explanation.slice(0, 400)}`
@@ -67,40 +68,45 @@ STRICT RULES:
       const model = attempt === 0 ? models[0] : models[1];
       try {
         const response = await fetchWithTimeout(
-          "https://ai.gateway.lovable.dev/v1/chat/completions",
+          `${GEMINI_BASE}/${model}:generateContent?key=${GEMINI_API_KEY}`,
           {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              model,
-              messages: [{ role: "user", content: prompt }],
-              modalities: ["image", "text"],
+              contents: [{ role: "user", parts: [{ text: prompt }] }],
+              generationConfig: {
+                responseModalities: ["TEXT", "IMAGE"],
+              },
             }),
           },
           TIMEOUT_MS
         );
 
         if (response.status === 429) {
+          if (attempt < MAX_RETRIES) {
+            await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, attempt)));
+            continue;
+          }
           return new Response(
             JSON.stringify({ error: "Rate limited. Please try again in a moment." }),
             { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        if (response.status === 402) {
-          return new Response(
-            JSON.stringify({ error: "AI credits exhausted. Please add funds." }),
-            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
 
         if (response.ok) {
           const data = await response.json();
-          const message = data.choices?.[0]?.message;
-          const imageUrl = message?.images?.[0]?.image_url?.url;
-          const textContent = message?.content || "";
+          const parts = data.candidates?.[0]?.content?.parts || [];
+          let imageUrl = "";
+          let textContent = "";
+
+          for (const part of parts) {
+            if (part.inlineData) {
+              imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+            }
+            if (part.text) {
+              textContent += part.text;
+            }
+          }
 
           if (imageUrl) {
             return new Response(

@@ -6,8 +6,9 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const PRIMARY_MODEL = "google/gemini-3-flash-preview";
-const FALLBACK_MODEL = "google/gemini-2.5-flash";
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+const PRIMARY_MODEL = "gemini-2.5-flash";
+const FALLBACK_MODEL = "gemini-2.0-flash";
 const TIMEOUT_MS = 40_000;
 const MAX_RETRIES = 2;
 
@@ -101,8 +102,8 @@ serve(async (req) => {
     const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
     const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").trim().slice(0, 255) : parsedUrl.hostname;
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
     const systemPrompt = `You are an AI content analyzer for a study platform. Analyze the provided webpage text and extract structured learning content.
 
@@ -123,18 +124,13 @@ Be thorough but concise. Return ONLY the JSON object, no markdown formatting or 
       const model = attempt === 0 ? models[0] : models[1];
       try {
         const aiResp = await fetchWithTimeout(
-          "https://ai.gateway.lovable.dev/v1/chat/completions",
+          `${GEMINI_BASE}/${model}:generateContent?key=${GEMINI_API_KEY}`,
           {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              model,
-              messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: `Analyze this webpage titled "${title}":\n\n${text.substring(0, 15000)}` },
+              contents: [
+                { role: "user", parts: [{ text: `${systemPrompt}\n\nAnalyze this webpage titled "${title}":\n\n${text.substring(0, 15000)}` }] },
               ],
             }),
           },
@@ -142,21 +138,19 @@ Be thorough but concise. Return ONLY the JSON object, no markdown formatting or 
         );
 
         if (aiResp.status === 429) {
+          if (attempt < MAX_RETRIES) {
+            await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, attempt)));
+            continue;
+          }
           return new Response(
             JSON.stringify({ error: "Rate limited. Please try again." }),
             { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        if (aiResp.status === 402) {
-          return new Response(
-            JSON.stringify({ error: "AI credits exhausted." }),
-            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
 
         if (aiResp.ok) {
           const aiData = await aiResp.json();
-          const content = aiData.choices?.[0]?.message?.content || "{}";
+          const content = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
           let parsed;
           try {
             const cleaned = content.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
