@@ -199,20 +199,30 @@ export async function streamChat({
   onDone();
 }
 
+interface AnalysisResult {
+  title?: string;
+  extracted_text?: string;
+  topics?: string[];
+  summary?: string;
+  key_points?: string[];
+  formulas?: string[];
+  error?: string;
+  detected_language?: string;
+}
+
 /** Analyze a text document — cached for 10 minutes */
 export async function analyzeDocument(text: string, fileName: string) {
-  return callAI(ROUTES.analyzeDoc, { text, fileName }, { timeoutMs: 50000, cacheTtlMs: 10 * 60 * 1000 });
+  return callAI<AnalysisResult>(ROUTES.analyzeDoc, { text, fileName }, { timeoutMs: 50000, cacheTtlMs: 10 * 60 * 1000 });
 }
 
 /** Analyze a URL — cached for 10 minutes */
 export async function analyzeUrl(url: string) {
-  return callAI(ROUTES.extractUrl, { url }, { timeoutMs: 50000, cacheTtlMs: 10 * 60 * 1000 });
+  return callAI<AnalysisResult>(ROUTES.extractUrl, { url }, { timeoutMs: 50000, cacheTtlMs: 10 * 60 * 1000 });
 }
 
 /** Analyze an image (OCR + AI) — cached for 10 minutes */
 export async function analyzeImage(imageBase64: string, mimeType: string, fileName: string) {
-  // Use fileName + size as cache key instead of full base64
-  return callAI(ROUTES.analyzeImage, { imageBase64, mimeType, fileName }, { timeoutMs: 55000, cacheTtlMs: 10 * 60 * 1000 });
+  return callAI<AnalysisResult>(ROUTES.analyzeImage, { imageBase64, mimeType, fileName }, { timeoutMs: 55000, cacheTtlMs: 10 * 60 * 1000 });
 }
 
 /** Generate a visual explanation — cached for 5 minutes */
