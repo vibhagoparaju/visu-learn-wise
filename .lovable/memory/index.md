@@ -27,4 +27,4 @@
 - [Video-Based Learning](mem://features/video-based-learning) — YouTube API v3 (Education category), privacy embed, AI key points
 - [Dynamic Syllabus Engine](mem://features/dynamic-syllabus-engine) — 3-level hierarchy (Subject -> Chapter -> Subtopic) based on board/grade
 - [Classical Learning](mem://features/classical-learning) — Simplified story-based explanations for classical texts (Ramayan, etc.)
-- [Multilingual System](mem://features/multilingual-system) — Language-agnostic AI processing, voice, and OCR across all features
+- [Centralized AI Router](mem://tech/ai-router-layer) — All AI calls through ai.ts with LRU caching, dedup, retry, and unified errors

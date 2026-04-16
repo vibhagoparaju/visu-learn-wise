@@ -2,13 +2,12 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ImageIcon, Loader2, RefreshCw, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { generateVisual } from "@/services/ai";
 
 interface VisualExplanationProps {
   content: string;
   topic?: string;
 }
-
-const VISUAL_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-visual`;
 
 const VisualExplanation = ({ content, topic }: VisualExplanationProps) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -26,31 +25,17 @@ const VisualExplanation = ({ content, topic }: VisualExplanationProps) => {
     return firstSentence?.slice(0, 100) || "this concept";
   };
 
-  const generateVisual = async () => {
+  const fetchVisual = async () => {
     setLoading(true);
     setError(null);
     setHasRequested(true);
 
     try {
-      const resp = await fetch(VISUAL_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          topic: extractTopic(content),
-          explanation: content.replace(/[#*_]/g, "").slice(0, 600),
-        }),
-      });
-
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        throw new Error(data.error || `Error ${resp.status}`);
-      }
-
-      const data = await resp.json();
-      setImageUrl(data.imageUrl);
+      const data = await generateVisual(
+        extractTopic(content),
+        content.replace(/[#*_]/g, "").slice(0, 600)
+      );
+      setImageUrl(data.imageUrl || null);
       setDescription(data.description || "");
     } catch (e: any) {
       setError(e.message || "Failed to generate visual");
@@ -62,7 +47,7 @@ const VisualExplanation = ({ content, topic }: VisualExplanationProps) => {
   // Auto-generate on first render
   useEffect(() => {
     if (!hasRequested && !imageUrl) {
-      generateVisual();
+      fetchVisual();
     }
   }, []);
 
@@ -96,7 +81,7 @@ const VisualExplanation = ({ content, topic }: VisualExplanationProps) => {
           <AlertCircle className="h-5 w-5 text-destructive" />
         </div>
         <p className="text-sm text-muted-foreground text-center">{error}</p>
-        <Button variant="outline" size="sm" onClick={generateVisual} className="rounded-lg">
+        <Button variant="outline" size="sm" onClick={fetchVisual} className="rounded-lg">
           <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
           Try again
         </Button>
@@ -134,7 +119,7 @@ const VisualExplanation = ({ content, topic }: VisualExplanationProps) => {
         <Button
           variant="ghost"
           size="sm"
-          onClick={generateVisual}
+          onClick={fetchVisual}
           disabled={loading}
           className="text-xs rounded-lg"
         >
