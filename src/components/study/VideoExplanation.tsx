@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Play, ExternalLink, Loader2, AlertCircle, RefreshCw, Clock, CheckCircle2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { searchVideos } from "@/services/ai";
 
 interface VideoSuggestion {
   title: string;
@@ -18,8 +19,6 @@ interface VideoExplanationProps {
   topic?: string;
 }
 
-const VIDEO_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/search-videos`;
-
 const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
   const [videos, setVideos] = useState<VideoSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -29,32 +28,18 @@ const VideoExplanation = ({ content, topic }: VideoExplanationProps) => {
   const [iframeLoading, setIframeLoading] = useState(false);
   const [iframeError, setIframeError] = useState(false);
 
-  const fetchVideos = async () => {
+  const fetchVideoList = async () => {
     setLoading(true);
     setError(null);
     setHasRequested(true);
     setPlayingIdx(null);
 
     try {
-      const resp = await fetch(VIDEO_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          topic: topic || content.split(/[.!?]/)[0]?.trim().slice(0, 100) || "this topic",
-          explanation: content.replace(/[#*_]/g, "").slice(0, 400),
-        }),
-      });
-
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        throw new Error(data.error || `Error ${resp.status}`);
-      }
-
-      const data = await resp.json();
-      setVideos(data.videos || []);
+      const data = await searchVideos(
+        topic || content.split(/[.!?]/)[0]?.trim().slice(0, 100) || "this topic",
+        content.replace(/[#*_]/g, "").slice(0, 400)
+      );
+      setVideos((data.videos || []) as VideoSuggestion[]);
     } catch (e: any) {
       setError(e.message || "Failed to find videos");
     } finally {
