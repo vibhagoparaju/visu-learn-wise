@@ -6,8 +6,9 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const PRIMARY_MODEL = "google/gemini-3-flash-preview";
-const FALLBACK_MODEL = "google/gemini-2.5-flash";
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+const PRIMARY_MODEL = "gemini-2.5-flash";
+const FALLBACK_MODEL = "gemini-2.0-flash";
 const TIMEOUT_MS = 40_000;
 const MAX_RETRIES = 2;
 
@@ -36,8 +37,8 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
     let prompt: string;
 
@@ -123,18 +124,15 @@ Include 6-12 subjects. Return ONLY valid JSON, no markdown.`;
       const model = attempt === 0 ? models[0] : models[1];
       try {
         const response = await fetchWithTimeout(
-          "https://ai.gateway.lovable.dev/v1/chat/completions",
+          `${GEMINI_BASE}/${model}:generateContent?key=${GEMINI_API_KEY}`,
           {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              model,
-              messages: [
-                { role: "system", content: "You are an expert educational curriculum specialist. You have precise knowledge of Indian education boards (CBSE, ICSE, State Boards) and university syllabi. Always return accurate, complete, and well-structured syllabus data. Return only valid JSON, no markdown code blocks." },
-                { role: "user", content: prompt },
+              contents: [
+                { role: "user", parts: [{ text: "You are an expert educational curriculum specialist. You have precise knowledge of Indian education boards (CBSE, ICSE, State Boards) and university syllabi. Always return accurate, complete, and well-structured syllabus data. Return only valid JSON, no markdown code blocks." }] },
+                { role: "model", parts: [{ text: "Understood. I will return only valid JSON." }] },
+                { role: "user", parts: [{ text: prompt }] },
               ],
             }),
           },
@@ -142,21 +140,19 @@ Include 6-12 subjects. Return ONLY valid JSON, no markdown.`;
         );
 
         if (response.status === 429) {
+          if (attempt < MAX_RETRIES) {
+            await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, attempt)));
+            continue;
+          }
           return new Response(
             JSON.stringify({ error: "Rate limited. Please try again in a moment." }),
             { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        if (response.status === 402) {
-          return new Response(
-            JSON.stringify({ error: "AI credits exhausted. Please add funds." }),
-            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
 
         if (response.ok) {
           const data = await response.json();
-          const content = data.choices?.[0]?.message?.content || "";
+          const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
           const jsonMatch = content.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);

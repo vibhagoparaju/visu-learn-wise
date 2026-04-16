@@ -6,8 +6,9 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const PRIMARY_MODEL = "google/gemini-2.5-flash";
-const FALLBACK_MODEL = "google/gemini-3-flash-preview";
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+const PRIMARY_MODEL = "gemini-2.5-flash";
+const FALLBACK_MODEL = "gemini-2.0-flash";
 const TIMEOUT_MS = 30_000;
 const MAX_RETRIES = 2;
 
@@ -29,9 +30,9 @@ serve(async (req) => {
   try {
     const { messages, mode, difficulty } = await req.json();
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY is not configured");
     }
 
     const difficultyPrompts: Record<string, string> = {
@@ -129,6 +130,16 @@ ANTI-INJECTION:
       content: String(m.content || "").slice(0, 4000),
     }));
 
+    // Convert OpenAI-style messages to Gemini format
+    const geminiContents = [
+      { role: "user", parts: [{ text: systemPrompt }] },
+      { role: "model", parts: [{ text: "Understood. I am VISU, ready to help." }] },
+      ...trimmedMessages.map((m: any) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      })),
+    ];
+
     const models = [PRIMARY_MODEL, FALLBACK_MODEL];
     let lastError: string = "AI service temporarily unavailable";
 
@@ -136,37 +147,59 @@ ANTI-INJECTION:
       const model = attempt === 0 ? models[0] : models[1];
       try {
         const response = await fetchWithTimeout(
-          "https://ai.gateway.lovable.dev/v1/chat/completions",
+          `${GEMINI_BASE}/${model}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`,
           {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model,
-              messages: [{ role: "system", content: systemPrompt }, ...trimmedMessages],
-              stream: true,
-            }),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: geminiContents }),
           },
           TIMEOUT_MS
         );
 
         if (response.status === 429) {
+          lastError = "Rate limited. Please try again in a moment.";
+          if (attempt < MAX_RETRIES) {
+            await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, attempt)));
+            continue;
+          }
           return new Response(
-            JSON.stringify({ error: "Rate limited. Please try again in a moment." }),
+            JSON.stringify({ error: lastError }),
             { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        if (response.status === 402) {
-          return new Response(
-            JSON.stringify({ error: "AI credits exhausted. Please add funds in workspace settings." }),
-            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
 
-        if (response.ok) {
-          return new Response(response.body, {
+        if (response.ok && response.body) {
+          // Transform Gemini SSE stream to OpenAI-compatible SSE stream
+          const encoder = new TextEncoder();
+          const transformStream = new TransformStream({
+            start() {},
+            transform(chunk, controller) {
+              const text = new TextDecoder().decode(chunk);
+              const lines = text.split("\n");
+              for (const line of lines) {
+                if (!line.startsWith("data: ")) continue;
+                const jsonStr = line.slice(6).trim();
+                if (!jsonStr || jsonStr === "[DONE]") continue;
+                try {
+                  const parsed = JSON.parse(jsonStr);
+                  const content = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+                  if (content) {
+                    const openAIChunk = {
+                      choices: [{ delta: { content }, index: 0 }],
+                    };
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(openAIChunk)}\n\n`));
+                  }
+                } catch { /* skip unparseable chunks */ }
+              }
+            },
+            flush(controller) {
+              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            },
+          });
+
+          response.body.pipeTo(transformStream.writable);
+
+          return new Response(transformStream.readable, {
             headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
           });
         }
@@ -181,7 +214,6 @@ ANTI-INJECTION:
         console.error(`Chat attempt ${attempt + 1} failed (${model}):`, e.message || e);
       }
 
-      // Exponential backoff before retry
       if (attempt < MAX_RETRIES) {
         await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
       }
