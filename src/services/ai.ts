@@ -244,7 +244,7 @@ export async function searchVideos(topic: string, explanation?: string) {
 }
 
 /** Generate syllabus — cached for 30 minutes */
-export async function generateSyllabus(board: string, grade: string, subject: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return callAI<any>(ROUTES.generateSyllabus, { board, grade, subject }, { timeoutMs: 60000, cacheTtlMs: 30 * 60 * 1000 });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function generateSyllabus(body: Record<string, string>): Promise<any> {
+  return callAI<any>(ROUTES.generateSyllabus, body, { timeoutMs: 60000, cacheTtlMs: 30 * 60 * 1000 });
 }

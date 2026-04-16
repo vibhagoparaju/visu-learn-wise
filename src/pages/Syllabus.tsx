@@ -143,7 +143,7 @@ const Syllabus = () => {
   };
 
   const fetchData = async (body: Record<string, string>) => {
-    return _generateSyllabus(body.board, body.grade, body.subject || "");
+    return _generateSyllabus(body);
   };
 
   const fetchSubjects = async (board: string, grade: string, university?: string, stream?: string) => {
