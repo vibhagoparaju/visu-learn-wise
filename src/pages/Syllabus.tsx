@@ -34,7 +34,8 @@ interface Topic {
   difficulty: "beginner" | "intermediate" | "advanced";
 }
 
-const SYLLABUS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-syllabus`;
+// Syllabus calls now go through the centralized AI router
+import { generateSyllabus as _generateSyllabus } from "@/services/ai";
 
 const boards = [
   { id: "cbse", name: "CBSE", desc: "Central Board of Secondary Education" },
@@ -142,16 +143,7 @@ const Syllabus = () => {
   };
 
   const fetchData = async (body: Record<string, string>) => {
-    const resp = await fetch(SYLLABUS_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      },
-      body: JSON.stringify(body),
-    });
-    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || "Failed");
-    return resp.json();
+    return _generateSyllabus(body.board, body.grade, body.subject || "");
   };
 
   const fetchSubjects = async (board: string, grade: string, university?: string, stream?: string) => {
