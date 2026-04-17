@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef } from "react";
 
-// Map ISO 639-1 codes to BCP 47 language tags for Speech APIs
 const LANG_MAP: Record<string, string> = {
   en: "en-US", hi: "hi-IN", fr: "fr-FR", de: "de-DE", es: "es-ES",
   ar: "ar-SA", zh: "zh-CN", ja: "ja-JP", ko: "ko-KR", pt: "pt-BR",
@@ -10,35 +9,53 @@ const LANG_MAP: Record<string, string> = {
   pl: "pl-PL", uk: "uk-UA", sv: "sv-SE", da: "da-DK", fi: "fi-FI",
   no: "nb-NO", el: "el-GR", he: "he-IL", id: "id-ID", ms: "ms-MY",
   ro: "ro-RO", cs: "cs-CZ", hu: "hu-HU", sw: "sw-KE",
+  or: "or-IN", si: "si-LK",
 };
 
 function getBcp47(langCode?: string): string {
   if (!langCode) return "en-US";
   if (LANG_MAP[langCode]) return LANG_MAP[langCode];
-  // Try as-is if it looks like a BCP 47 tag
   if (langCode.includes("-")) return langCode;
   return "en-US";
 }
 
-// Simple language detection heuristic for choosing STT language
 function detectScriptLanguage(text: string): string | null {
   if (!text || text.length < 3) return null;
-  // Check dominant script in first 200 chars
   const sample = text.slice(0, 200);
-  if (/[\u0900-\u097F]/.test(sample)) return "hi"; // Devanagari
-  if (/[\u0600-\u06FF]/.test(sample)) return "ar"; // Arabic
-  if (/[\u4E00-\u9FFF]/.test(sample)) return "zh"; // Chinese
-  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(sample)) return "ja"; // Japanese
-  if (/[\uAC00-\uD7AF]/.test(sample)) return "ko"; // Korean
-  if (/[\u0B80-\u0BFF]/.test(sample)) return "ta"; // Tamil
-  if (/[\u0C00-\u0C7F]/.test(sample)) return "te"; // Telugu
-  if (/[\u0980-\u09FF]/.test(sample)) return "bn"; // Bengali
-  if (/[\u0A80-\u0AFF]/.test(sample)) return "gu"; // Gujarati
-  if (/[\u0D00-\u0D7F]/.test(sample)) return "ml"; // Malayalam
-  if (/[\u0A00-\u0A7F]/.test(sample)) return "pa"; // Punjabi
-  if (/[\u0400-\u04FF]/.test(sample)) return "ru"; // Cyrillic
-  if (/[\u0E00-\u0E7F]/.test(sample)) return "th"; // Thai
-  return null; // Default to auto-detect
+  if (/[\u0900-\u097F]/.test(sample)) return "hi";
+  if (/[\u0600-\u06FF]/.test(sample)) return "ar";
+  if (/[\u4E00-\u9FFF]/.test(sample)) return "zh";
+  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(sample)) return "ja";
+  if (/[\uAC00-\uD7AF]/.test(sample)) return "ko";
+  if (/[\u0B80-\u0BFF]/.test(sample)) return "ta";
+  if (/[\u0C00-\u0C7F]/.test(sample)) return "te";
+  if (/[\u0980-\u09FF]/.test(sample)) return "bn";
+  if (/[\u0A80-\u0AFF]/.test(sample)) return "gu";
+  if (/[\u0D00-\u0D7F]/.test(sample)) return "ml";
+  if (/[\u0A00-\u0A7F]/.test(sample)) return "pa";
+  if (/[\u0400-\u04FF]/.test(sample)) return "ru";
+  if (/[\u0E00-\u0E7F]/.test(sample)) return "th";
+  if (/[\u0B00-\u0B7F]/.test(sample)) return "or";
+  if (/[\u0D80-\u0DFF]/.test(sample)) return "si";
+  return null;
+}
+
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/#{1,6}\s+/g, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/`{1,3}[^`]*`{1,3}/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^[-*+]\s/gm, "")
+    .replace(/^\d+\.\s/gm, "")
+    .replace(/^>\s/gm, "")
+    .replace(/^---+$/gm, "")
+    .replace(/\|.*\|/g, "")
+    .replace(/\n{2,}/g, ". ")
+    .replace(/\n/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 export const useVoice = () => {
@@ -46,39 +63,27 @@ export const useVoice = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  // Accept optional language hint for STT
   const startListening = useCallback((langHint?: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       const SpeechRecognition =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
       if (!SpeechRecognition) {
         reject(new Error("Speech recognition not supported in this browser"));
         return;
       }
-
       const recognition = new SpeechRecognition();
       recognitionRef.current = recognition;
-      // Use language hint or default — empty string enables auto-detect on some browsers
       recognition.lang = langHint ? getBcp47(langHint) : "";
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
-
       recognition.onstart = () => setIsListening(true);
-
       recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setIsListening(false);
         resolve(transcript);
       };
-
-      recognition.onerror = (event: any) => {
-        setIsListening(false);
-        reject(new Error(event.error));
-      };
-
+      recognition.onerror = (event: any) => { setIsListening(false); reject(new Error(event.error)); };
       recognition.onend = () => setIsListening(false);
-
       recognition.start();
     });
   }, []);
@@ -88,40 +93,34 @@ export const useVoice = () => {
     setIsListening(false);
   }, []);
 
-  // Accept optional language code for TTS
   const speak = useCallback((text: string, langCode?: string) => {
-    // Strip markdown for cleaner speech
-    const cleanText = text
-      .replace(/#{1,6}\s/g, "")
-      .replace(/\*\*/g, "")
-      .replace(/\*/g, "")
-      .replace(/`[^`]*`/g, "")
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-      .replace(/[-•]\s/g, "")
-      .replace(/\n+/g, ". ");
-
-    if (!window.speechSynthesis) return;
-
+    const cleanText = stripMarkdown(text);
+    if (!window.speechSynthesis || !cleanText) return;
     window.speechSynthesis.cancel();
 
-    // Auto-detect language from text content if not provided
     const detectedLang = langCode || detectScriptLanguage(cleanText);
     const bcp47 = getBcp47(detectedLang || undefined);
 
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = bcp47;
-    utterance.rate = 0.95;
-    utterance.pitch = 1;
+    const doSpeak = () => {
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = bcp47;
+      utterance.rate = 0.95;
+      utterance.pitch = 1;
+      const voices = window.speechSynthesis.getVoices();
+      const matchingVoice = voices.find((v) => v.lang.startsWith(bcp47.split("-")[0]));
+      if (matchingVoice) utterance.voice = matchingVoice;
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+    };
 
-    // Try to find a voice matching the language
-    const voices = window.speechSynthesis.getVoices();
-    const matchingVoice = voices.find((v) => v.lang.startsWith(bcp47.split("-")[0]));
-    if (matchingVoice) utterance.voice = matchingVoice;
-
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-    window.speechSynthesis.speak(utterance);
+    // Chrome voices may not be loaded on first call
+    if (window.speechSynthesis.getVoices().length === 0) {
+      window.speechSynthesis.addEventListener("voiceschanged", doSpeak, { once: true });
+    } else {
+      doSpeak();
+    }
   }, []);
 
   const stopSpeaking = useCallback(() => {

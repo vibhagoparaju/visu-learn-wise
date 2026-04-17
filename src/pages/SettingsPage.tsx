@@ -241,6 +241,21 @@ const SettingsPage = () => {
           {saving ? "Saving..." : "Save Settings"}
         </Button>
       </motion.div>
+
+      <motion.div variants={item}>
+        <Button
+          variant="outline"
+          className="w-full rounded-xl"
+          onClick={async () => {
+            if (!user) return;
+            await supabase.from("profiles").update({ onboarding_complete: false } as any).eq("id", user.id);
+            await refreshProfile();
+            toast.success("Walkthrough will show on next visit");
+          }}
+        >
+          Take the tour again
+        </Button>
+      </motion.div>
     </motion.div>
   );
 };

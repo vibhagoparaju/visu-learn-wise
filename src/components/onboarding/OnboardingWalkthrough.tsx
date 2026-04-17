@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Upload, MessageSquare, Brain, BarChart3, Layers, Trophy, ArrowRight, X, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PuppyMascot, { type PuppyMood } from "@/components/mascot/PuppyMascot";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 interface OnboardingStep {
   icon: React.ElementType;
@@ -64,23 +66,26 @@ const steps: OnboardingStep[] = [
   },
 ];
 
-const ONBOARDING_KEY = "visu_onboarding_complete";
-
 const OnboardingWalkthrough = () => {
+  const { user, profile, refreshProfile } = useAuth();
   const [isVisible, setIsVisible] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
 
   useEffect(() => {
-    const completed = localStorage.getItem(ONBOARDING_KEY);
-    if (!completed) {
+    if (profile && !(profile as any).onboarding_complete) {
       const timer = setTimeout(() => setIsVisible(true), 800);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [profile]);
 
-  const handleComplete = () => {
-    localStorage.setItem(ONBOARDING_KEY, "true");
+  const handleComplete = async () => {
     setIsVisible(false);
+    if (user) {
+      try {
+        await supabase.from("profiles").update({ onboarding_complete: true } as any).eq("id", user.id);
+        await refreshProfile();
+      } catch (e) { console.error("Failed to save onboarding status:", e); }
+    }
   };
 
   const handleNext = () => {
