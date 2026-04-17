@@ -1,142 +1,117 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { corsHeadersFor, isOriginAllowed, authenticateRequest, checkAndIncrementBudget } from "../_shared/cors.ts";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-const PRIMARY_MODEL = "gemini-2.0-flash-exp-image-generation";
-const FALLBACK_MODEL = "gemini-2.0-flash";
+const IMAGE_MODEL = "gemini-2.0-flash-exp-image-generation";
+const SVG_FALLBACK_MODEL = "gemini-2.0-flash";
 const TIMEOUT_MS = 60_000;
-const MAX_RETRIES = 2;
+const MAX_RETRIES = 1;
 
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
+  try { return await fetch(url, { ...options, signal: controller.signal }); }
+  finally { clearTimeout(timer); }
+}
+
+async function tryImageGeneration(apiKey: string, prompt: string): Promise<{ imageUrl?: string; description?: string } | null> {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetchWithTimeout(
+        `${GEMINI_BASE}/${IMAGE_MODEL}:generateContent?key=${apiKey}`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseModalities: ["TEXT", "IMAGE"] } }) },
+        TIMEOUT_MS
+      );
+
+      if (response.status === 429) {
+        if (attempt < MAX_RETRIES) { await new Promise((r) => setTimeout(r, 2000)); continue; }
+        return null;
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        const parts = data.candidates?.[0]?.content?.parts || [];
+        let imageUrl = "", textContent = "";
+        for (const part of parts) {
+          if (part.inlineData) imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+          if (part.text) textContent += part.text;
+        }
+        if (imageUrl) return { imageUrl, description: textContent };
+      }
+    } catch (e: any) {
+      console.error(`Image gen attempt ${attempt + 1}:`, e.message || e);
+    }
   }
+  return null;
+}
+
+async function trySvgFallback(apiKey: string, topic: string, explanation?: string): Promise<{ svgCode?: string; description?: string } | null> {
+  try {
+    const svgPrompt = `Create a simple, clean SVG diagram (max 400x300px viewBox) explaining: "${topic}".
+${explanation ? `Based on this explanation:\n${explanation.slice(0, 400)}\n` : ""}
+Use clear labels, simple shapes (boxes, arrows, circles), max 5-7 elements, high contrast colors.
+Return ONLY valid SVG starting with <svg> and ending with </svg>. No markdown, no explanation, just the SVG code.`;
+
+    const response = await fetchWithTimeout(
+      `${GEMINI_BASE}/${SVG_FALLBACK_MODEL}:generateContent?key=${apiKey}`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: svgPrompt }] }] }) },
+      TIMEOUT_MS
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const svgMatch = text.match(/<svg[\s\S]*?<\/svg>/);
+      if (svgMatch) return { svgCode: svgMatch[0], description: `Diagram for ${topic}` };
+    }
+  } catch (e: any) {
+    console.error("SVG fallback failed:", e.message || e);
+  }
+  return null;
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+  const origin = req.headers.get("origin");
+  const cors = corsHeadersFor(origin);
+
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (!isOriginAllowed(origin)) {
+    return new Response(JSON.stringify({ error: "Origin not allowed" }), { status: 403, headers: { ...cors, "Content-Type": "application/json" } });
   }
+
+  const auth = await authenticateRequest(req, cors);
+  if (auth instanceof Response) return auth;
+
+  const budget = await checkAndIncrementBudget(auth.userId, 4000, cors);
+  if (budget) return budget;
 
   try {
     const { topic, explanation } = await req.json();
-
     if (!topic || typeof topic !== "string") {
-      return new Response(
-        JSON.stringify({ error: "topic is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "topic is required" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
     }
 
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-    const classifyPrompt = explanation
-      ? `Based on this explanation, what type of visual would best represent it? Choose ONE: flow diagram, concept breakdown, comparison chart, or relationship map.\n\nExplanation: ${explanation.slice(0, 400)}`
-      : "";
+    const prompt = `Create a clean educational visual for: "${topic}".
+${explanation ? `Match this explanation:\n"""${explanation.slice(0, 600)}"""\n` : ""}
+RULES: White background. Max 5-7 labeled elements. Bold distinct colors. No decoration. Readable in 5 seconds.`;
 
-    const prompt = `You are an expert educational illustrator. Create a SINGLE, focused visual that directly represents this concept: "${topic}".
-
-${explanation ? `The AI tutor explained it as follows (your visual MUST match this explanation exactly):\n"""${explanation.slice(0, 600)}"""\n` : ""}
-${classifyPrompt ? `First, decide which visual type fits best: flow diagram, concept breakdown, comparison chart, or relationship map. Then generate that specific type.\n` : ""}
-
-STRICT RULES:
-1. ACCURACY — Every element in the visual must come directly from the explanation above. Do NOT add information that isn't mentioned.
-2. ONE IDEA — Show only ONE main concept per visual. No side topics.
-3. MINIMAL ELEMENTS — Maximum 5-7 labeled elements. Fewer is better.
-4. CLEAR LABELS — Every box, arrow, or shape must have a short, readable text label.
-5. STEP-BY-STEP — If it's a process, show numbered steps with arrows (1 → 2 → 3).
-6. WHITE BACKGROUND — Clean white background, no textures or gradients.
-7. HIGH CONTRAST — Use bold, distinct colors (blue, green, orange) to separate concepts. Black text on light backgrounds.
-8. NO DECORATION — Zero decorative elements. No icons, emojis, or clip art. Purely informational.
-9. READABLE IN 5 SECONDS — A student should understand the core idea within seconds.
-10. HIERARCHY — The most important concept should be visually largest or centered.`;
-
-    const models = [PRIMARY_MODEL, FALLBACK_MODEL];
-    let lastError = "Failed to generate visual";
-
-    for (let attempt = 0; attempt < MAX_RETRIES + 1; attempt++) {
-      const model = attempt === 0 ? models[0] : models[1];
-      try {
-        const response = await fetchWithTimeout(
-          `${GEMINI_BASE}/${model}:generateContent?key=${GEMINI_API_KEY}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ role: "user", parts: [{ text: prompt }] }],
-              generationConfig: {
-                responseModalities: ["TEXT", "IMAGE"],
-              },
-            }),
-          },
-          TIMEOUT_MS
-        );
-
-        if (response.status === 429) {
-          if (attempt < MAX_RETRIES) {
-            await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, attempt)));
-            continue;
-          }
-          return new Response(
-            JSON.stringify({ error: "Rate limited. Please try again in a moment." }),
-            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        if (response.ok) {
-          const data = await response.json();
-          const parts = data.candidates?.[0]?.content?.parts || [];
-          let imageUrl = "";
-          let textContent = "";
-
-          for (const part of parts) {
-            if (part.inlineData) {
-              imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-            }
-            if (part.text) {
-              textContent += part.text;
-            }
-          }
-
-          if (imageUrl) {
-            return new Response(
-              JSON.stringify({ imageUrl, description: textContent }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
-          lastError = "No image was generated. Retrying...";
-        } else {
-          lastError = `AI service error (${response.status})`;
-        }
-      } catch (e: any) {
-        lastError = e.name === "AbortError" ? "Visual generation timed out" : "AI service temporarily unavailable";
-        console.error(`Generate-visual attempt ${attempt + 1} failed (${model}):`, e.message || e);
-      }
-
-      if (attempt < MAX_RETRIES) {
-        await new Promise((r) => setTimeout(r, 1500 * Math.pow(2, attempt)));
-      }
+    const imgResult = await tryImageGeneration(GEMINI_API_KEY, prompt);
+    if (imgResult?.imageUrl) {
+      return new Response(JSON.stringify(imgResult), { headers: { ...cors, "Content-Type": "application/json" } });
     }
 
-    return new Response(
-      JSON.stringify({ error: lastError }),
-      { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    // Fallback to SVG
+    const svgResult = await trySvgFallback(GEMINI_API_KEY, topic, explanation);
+    if (svgResult?.svgCode) {
+      return new Response(JSON.stringify(svgResult), { headers: { ...cors, "Content-Type": "application/json" } });
+    }
+
+    return new Response(JSON.stringify({ error: "Could not generate visual. Please try again." }), { status: 503, headers: { ...cors, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("generate-visual error:", e);
-    return new Response(
-      JSON.stringify({ error: "Something went wrong. Please try again." }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: "Something went wrong." }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
   }
 });

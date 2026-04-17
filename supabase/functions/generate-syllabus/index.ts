@@ -1,10 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { corsHeadersFor, isOriginAllowed, authenticateRequest, checkAndIncrementBudget } from "../_shared/cors.ts";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const PRIMARY_MODEL = "gemini-2.5-flash";
@@ -15,106 +10,42 @@ const MAX_RETRIES = 2;
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
+  try { return await fetch(url, { ...options, signal: controller.signal }); }
+  finally { clearTimeout(timer); }
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+  const origin = req.headers.get("origin");
+  const cors = corsHeadersFor(origin);
+
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (!isOriginAllowed(origin)) {
+    return new Response(JSON.stringify({ error: "Origin not allowed" }), { status: 403, headers: { ...cors, "Content-Type": "application/json" } });
   }
+
+  const auth = await authenticateRequest(req, cors);
+  if (auth instanceof Response) return auth;
+
+  const budget = await checkAndIncrementBudget(auth.userId, 1500, cors);
+  if (budget) return budget;
 
   try {
     const { board, grade, subject, chapter, university, stream } = await req.json();
-
     if (!board || typeof board !== "string") {
-      return new Response(
-        JSON.stringify({ error: "board is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "board is required" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
     }
 
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
     let prompt: string;
-
     if (chapter) {
-      prompt = `You are an expert curriculum designer with deep knowledge of the ${board} education system.
-
-Generate a detailed list of subtopics for:
-Board: ${board}
-Grade/Year: ${grade || "General"}
-Subject: ${subject}
-Chapter: ${chapter}
-
-IMPORTANT RULES:
-- List ALL subtopics that are actually taught in this chapter under the ${board} board for ${grade}
-- Use the EXACT topic names as they appear in official ${board} textbooks and syllabi
-- Order topics from foundational concepts to advanced applications
-- Include both theory topics and practical/numerical topics
-- Do NOT skip any important concept
-- Assign accurate difficulty levels based on student experience
-
-Return a JSON object:
-{
-  "topics": [
-    { "name": "Exact Subtopic Name", "description": "One clear sentence explaining what students learn", "difficulty": "beginner|intermediate|advanced" }
-  ]
-}
-
-Include 6-15 subtopics depending on the chapter size. Return ONLY valid JSON, no markdown.`;
+      prompt = `Generate subtopics for Board: ${board}, Grade: ${grade || "General"}, Subject: ${subject}, Chapter: ${chapter}. Use EXACT names from official ${board} textbooks. Return JSON: {"topics":[{"name":"...","description":"...","difficulty":"beginner|intermediate|advanced"}]} 6-15 items. Return ONLY JSON.`;
     } else if (subject) {
-      prompt = `You are an expert curriculum designer with deep knowledge of the ${board} education system.
-
-Generate the COMPLETE chapter list for:
-Board: ${board}
-Grade/Year: ${grade || "General"}
-Subject: ${subject}
-
-IMPORTANT RULES:
-- List ALL chapters exactly as they appear in the official ${board} ${grade} ${subject} textbook
-- Use EXACT chapter names from the official syllabus
-- Maintain the EXACT order chapters appear in the textbook
-- Do NOT combine or skip chapters
-- Include the chapter number
-- For each chapter, provide a count of key subtopics it contains
-
-Return a JSON object:
-{
-  "chapters": [
-    { "number": 1, "name": "Exact Chapter Name", "description": "Brief chapter summary", "topicCount": 8, "difficulty": "beginner|intermediate|advanced" }
-  ]
-}
-
-Return ONLY valid JSON, no markdown.`;
+      prompt = `Generate complete chapter list for Board: ${board}, Grade: ${grade || "General"}, Subject: ${subject}. Use EXACT chapter names from official syllabus. Return JSON: {"chapters":[{"number":1,"name":"...","description":"...","topicCount":8,"difficulty":"..."}]}. Return ONLY JSON.`;
     } else {
-      const uniContext = university ? `University: ${university}\nStream/Branch: ${stream || "General"}\n` : "";
-      prompt = `You are an expert curriculum designer with deep knowledge of the ${board} education system.
-
-Generate the list of subjects for:
-Board: ${board}
-${uniContext}Grade/Year: ${grade || "General"}
-
-IMPORTANT RULES:
-- List ALL subjects that are officially part of the ${board} ${grade} curriculum${university ? ` for ${stream} at ${university}` : ""}
-- Use EXACT subject names as they appear in official documentation
-- Include both compulsory and common elective subjects
-- Provide accurate topic counts based on the actual number of chapters
-${university ? `- For university subjects, include semester-wise subjects if applicable
-- Match the actual syllabus of ${university} for ${stream} ${grade}` : ""}
-
-Return a JSON object:
-{
-  "subjects": [
-    { "name": "Exact Subject Name", "icon": "emoji", "topicCount": number }
-  ]
-}
-
-Include 6-12 subjects. Return ONLY valid JSON, no markdown.`;
+      const uniContext = university ? `University: ${university}\nStream: ${stream || "General"}\n` : "";
+      prompt = `List subjects for Board: ${board}\n${uniContext}Grade: ${grade || "General"}. Return JSON: {"subjects":[{"name":"...","icon":"emoji","topicCount":number}]} 6-12 items. Return ONLY JSON.`;
     }
 
     const models = [PRIMARY_MODEL, FALLBACK_MODEL];
@@ -125,29 +56,13 @@ Include 6-12 subjects. Return ONLY valid JSON, no markdown.`;
       try {
         const response = await fetchWithTimeout(
           `${GEMINI_BASE}/${model}:generateContent?key=${GEMINI_API_KEY}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [
-                { role: "user", parts: [{ text: "You are an expert educational curriculum specialist. You have precise knowledge of Indian education boards (CBSE, ICSE, State Boards) and university syllabi. Always return accurate, complete, and well-structured syllabus data. Return only valid JSON, no markdown code blocks." }] },
-                { role: "model", parts: [{ text: "Understood. I will return only valid JSON." }] },
-                { role: "user", parts: [{ text: prompt }] },
-              ],
-            }),
-          },
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }] }) },
           TIMEOUT_MS
         );
 
         if (response.status === 429) {
-          if (attempt < MAX_RETRIES) {
-            await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, attempt)));
-            continue;
-          }
-          return new Response(
-            JSON.stringify({ error: "Rate limited. Please try again in a moment." }),
-            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          if (attempt < MAX_RETRIES) { await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, attempt))); continue; }
+          return new Response(JSON.stringify({ error: "Rate limited." }), { status: 429, headers: { ...cors, "Content-Type": "application/json" } });
         }
 
         if (response.ok) {
@@ -156,33 +71,22 @@ Include 6-12 subjects. Return ONLY valid JSON, no markdown.`;
           const jsonMatch = content.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
-            return new Response(JSON.stringify(parsed), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
+            return new Response(JSON.stringify(parsed), { headers: { ...cors, "Content-Type": "application/json" } });
           }
-          lastError = "Failed to parse syllabus data";
+          lastError = "Failed to parse syllabus";
         } else {
           lastError = `AI service error (${response.status})`;
         }
       } catch (e: any) {
-        lastError = e.name === "AbortError" ? "Request timed out. Please try again." : "AI service temporarily unavailable";
-        console.error(`Generate-syllabus attempt ${attempt + 1} failed (${model}):`, e.message || e);
+        lastError = e.name === "AbortError" ? "Request timed out." : "AI service temporarily unavailable";
+        console.error(`Generate-syllabus attempt ${attempt + 1}:`, e.message || e);
       }
-
-      if (attempt < MAX_RETRIES) {
-        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
-      }
+      if (attempt < MAX_RETRIES) await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
     }
 
-    return new Response(
-      JSON.stringify({ error: lastError }),
-      { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: lastError }), { status: 503, headers: { ...cors, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("generate-syllabus error:", e);
-    return new Response(
-      JSON.stringify({ error: "Something went wrong. Please try again." }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: "Something went wrong." }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
   }
 });
