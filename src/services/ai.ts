@@ -10,10 +10,22 @@
  */
 
 import { aiCache, dedup } from "./aiCache";
+import { supabase } from "@/integrations/supabase/client";
 
 // ─── Route Map ───────────────────────────────────────────────
 const BASE = import.meta.env.VITE_SUPABASE_URL;
-const AUTH = `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`;
+const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+/** Get current user JWT for authenticated edge function calls (falls back to anon). */
+async function getAuthHeader(): Promise<string> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token || ANON;
+    return `Bearer ${token}`;
+  } catch {
+    return `Bearer ${ANON}`;
+  }
+}
 
 const ROUTES = {
   chat:           `${BASE}/functions/v1/chat`,
@@ -83,9 +95,10 @@ async function callAI<T>(
 
   // Deduplicate in-flight identical requests
   return dedup(cacheKey, async () => {
+    const auth = await getAuthHeader();
     const resp = await fetchWithRetry(route, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: AUTH },
+      headers: { "Content-Type": "application/json", Authorization: auth, apikey: ANON },
       body: JSON.stringify(body),
     }, { timeoutMs: opts?.timeoutMs ?? 50000 });
 
@@ -122,9 +135,10 @@ export async function streamChat({
 }) {
   let resp: Response;
   try {
+    const auth = await getAuthHeader();
     resp = await fetchWithRetry(ROUTES.chat, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: AUTH },
+      headers: { "Content-Type": "application/json", Authorization: auth, apikey: ANON },
       body: JSON.stringify({ messages, mode, difficulty }),
     }, { timeoutMs: 35000 });
   } catch {
@@ -225,9 +239,9 @@ export async function analyzeImage(imageBase64: string, mimeType: string, fileNa
   return callAI<AnalysisResult>(ROUTES.analyzeImage, { imageBase64, mimeType, fileName }, { timeoutMs: 55000, cacheTtlMs: 10 * 60 * 1000 });
 }
 
-/** Generate a visual explanation — cached for 5 minutes */
+/** Generate a visual explanation — cached for 5 minutes. May return SVG fallback. */
 export async function generateVisual(topic: string, explanation?: string) {
-  return callAI<{ imageUrl?: string; description?: string }>(
+  return callAI<{ imageUrl?: string; svgCode?: string; description?: string }>(
     ROUTES.generateVisual,
     { topic, explanation },
     { timeoutMs: 65000, cacheTtlMs: 5 * 60 * 1000 }

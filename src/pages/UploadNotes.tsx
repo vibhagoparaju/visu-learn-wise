@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, FileText, CheckCircle2, Sparkles, BookOpen, FlaskConical, X, AlertCircle, ArrowRight, Loader2, Link2, Globe, Image as ImageIcon, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -55,64 +55,88 @@ const UploadNotes = () => {
   const [urlInput, setUrlInput] = useState("");
   const [urlLoading, setUrlLoading] = useState(false);
 
+  // Cleanup preview URLs on unmount
+  useEffect(() => {
+    return () => {
+      items.forEach((it) => it.previewUrl && URL.revokeObjectURL(it.previewUrl));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function extractTextFromFile(file: File, ext: string): Promise<string> {
+    if (ext === ".pdf") {
+      const pdfjs = await import("pdfjs-dist");
+      // @ts-ignore — vite-friendly worker setup
+      const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
+      pdfjs.GlobalWorkerOptions.workerSrc = (worker as any).default;
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+      let fullText = "";
+      const maxPages = Math.min(pdf.numPages, 50);
+      for (let i = 1; i <= maxPages; i++) {
+        const page = await pdf.getPage(i);
+        const tc = await page.getTextContent();
+        fullText += tc.items.map((it: any) => it.str).join(" ") + "\n";
+      }
+      return fullText;
+    }
+    if (ext === ".docx") {
+      const mammoth = await import("mammoth");
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      return result.value;
+    }
+    return file.text();
+  }
+
   const processFile = async (file: File) => {
+    if (!user) {
+      toast.error("Please sign in to upload");
+      navigate("/auth");
+      return;
+    }
     const validation = validateFile(file);
-    if (!validation.valid) {
-      toast.error(validation.error || "Invalid file");
-      return;
-    }
-    if (!checkRateLimit("upload", 5, 60000)) {
-      toast.error("Too many uploads. Please wait a moment.");
-      return;
-    }
+    if (!validation.valid) { toast.error(validation.error || "Invalid file"); return; }
+    if (!checkRateLimit("upload", 5, 60000)) { toast.error("Too many uploads. Please wait."); return; }
 
     const name = file.name;
     const size = `${(file.size / 1024).toFixed(1)} KB`;
     const isImage = isImageFile(file);
-
-    // Create preview URL for images
     const previewUrl = isImage ? URL.createObjectURL(file) : undefined;
 
     setItems((prev) => [...prev, { name, size, status: "uploading", previewUrl }]);
 
+    let filePath: string | null = null;
     try {
-      const filePath = `${user!.id}/${Date.now()}_${name}`;
+      filePath = `${user.id}/${Date.now()}_${name}`;
       const { error: uploadError } = await supabase.storage.from("documents").upload(filePath, file);
       if (uploadError) throw uploadError;
 
       const { data: doc, error: docError } = await supabase
         .from("documents")
-        .insert({ user_id: user!.id, file_name: name, file_path: filePath, status: "processing" })
-        .select()
-        .single();
+        .insert({ user_id: user.id, file_name: name, file_path: filePath, status: "processing" })
+        .select().single();
       if (docError) throw docError;
 
       setItems((prev) => prev.map((f) => (f.name === name ? { ...f, status: "processing" } : f)));
 
       let analysis;
-
       if (isImage) {
-        // Image path: convert to base64 and use multimodal AI
         const base64 = await fileToBase64(file);
         const mimeType = file.type || "image/jpeg";
         analysis = await analyzeImage(base64, mimeType, name);
-
-        // Check if AI returned an error (no readable text)
-        if (analysis.error && (!analysis.topics || analysis.topics.length === 0)) {
-          throw new Error(analysis.error);
-        }
+        if (analysis.error && (!analysis.topics || analysis.topics.length === 0)) throw new Error(analysis.error);
       } else {
-        // Text file path
-        const text = await file.text();
+        const ext = "." + (name.split(".").pop()?.toLowerCase() || "txt");
+        const text = await extractTextFromFile(file, ext);
+        if (!text || text.trim().length < 10) throw new Error("Could not extract text from file");
         analysis = await analyzeDocument(text, name);
       }
 
       await supabase.from("documents").update({
         status: "done",
-        topics: analysis.topics || [],
-        summary: analysis.summary || "",
-        key_points: analysis.key_points || [],
-        formulas: analysis.formulas || [],
+        topics: analysis.topics || [], summary: analysis.summary || "",
+        key_points: analysis.key_points || [], formulas: analysis.formulas || [],
       }).eq("id", doc.id);
 
       setItems((prev) => prev.map((f) =>
@@ -120,8 +144,12 @@ const UploadNotes = () => {
       ));
       toast.success(`${name} analyzed successfully!`);
     } catch (err: any) {
+      // Cleanup orphaned storage file
+      if (filePath) {
+        supabase.storage.from("documents").remove([filePath]).catch(() => {});
+      }
       setItems((prev) => prev.map((f) => (f.name === name ? { ...f, status: "error", error: err.message } : f)));
-      toast.error(`Failed to process ${name}`);
+      toast.error(`Failed to process ${name}: ${err.message || "unknown error"}`);
     }
   };
 

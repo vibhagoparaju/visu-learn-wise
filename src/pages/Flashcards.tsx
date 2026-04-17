@@ -58,10 +58,11 @@ const Flashcards = () => {
     const newDifficulty = correct
       ? Math.max(0, card.difficulty - 1)
       : Math.min(5, card.difficulty + 1);
-    const intervalMinutes = correct
-      ? Math.pow(2, 3 - newDifficulty) * 60 * 24
-      : 10;
-    const nextReview = new Date(Date.now() + intervalMinutes * 60000).toISOString();
+    // Simplified SM-2: incorrect → 10min; correct → 1, 3, 7, 14, 30 days based on difficulty
+    const intervalDays = correct
+      ? Math.max(1, (card.review_count + 1) * Math.max(0.5, 2.5 - newDifficulty * 0.4))
+      : 10 / 1440; // 10 minutes
+    const nextReview = new Date(Date.now() + intervalDays * 86400000).toISOString();
 
     await supabase
       .from("flashcards")

@@ -47,6 +47,8 @@ const PuppyMascot = ({ mood = "idle", size = "md", className = "", message }: Pu
           alt="VISU study buddy"
           width={s}
           height={s}
+          loading="lazy"
+          decoding="async"
           className="drop-shadow-md"
           draggable={false}
         />

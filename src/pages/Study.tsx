@@ -82,11 +82,13 @@ const Study = () => {
     setMessageViews((prev) => ({ ...prev, [msgId]: view }));
 
   const [autoSent, setAutoSent] = useState(false);
+  const retainedMessageIds = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (urlTopic && !autoSent && input) {
       setAutoSent(true);
-      setTimeout(() => sendMessage(), 300);
+      sendMessage(input);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlTopic, autoSent]);
 
   useEffect(() => {
@@ -98,8 +100,13 @@ const Study = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isLoading]);
 
-  const retainAsFlashcards = useCallback(async (content: string) => {
+  const retainAsFlashcards = useCallback(async (content: string, msgId?: string) => {
     if (!user) return;
+    if (msgId && retainedMessageIds.current.has(msgId)) {
+      toast.info("Already retained as flashcards");
+      return;
+    }
+    if (msgId) retainedMessageIds.current.add(msgId);
     toast.loading("Creating flashcards...", { id: "retain" });
 
     let result = "";
@@ -135,8 +142,8 @@ const Study = () => {
     });
   }, [user, urlTopic]);
 
-  const sendMessage = async () => {
-    const sanitized = sanitizeChatInput(input);
+  const sendMessage = async (overrideInput?: string) => {
+    const sanitized = sanitizeChatInput(overrideInput ?? input);
     if (!sanitized || isLoading) return;
 
     if (!checkRateLimit("chat", 15, 60000)) {
@@ -173,79 +180,79 @@ const Study = () => {
 
     try {
       await streamChat({
+        // Trim to last 10 messages to keep context window small
         messages: newMessages
           .filter((m) => m.id !== "welcome")
+          .slice(-10)
           .map((m) => ({ role: m.role, content: m.content })),
         mode: mode === "teachback" ? "teachback" : mode === "quiz" ? "quiz" : mode === "lazy" ? "lazy" : "chat",
         difficulty,
         onDelta: upsertAssistant,
         onDone: async () => {
+          // Strip RESULT marker from displayed content (quiz mode)
+          const isQuiz = mode === "quiz";
+          const isCorrect = isQuiz && /RESULT:CORRECT\b/.test(assistantContent);
+          if (isQuiz) {
+            assistantContent = assistantContent.replace(/RESULT:(CORRECT|INCORRECT|NEW)\b/g, "").trim();
+          }
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === "streaming" ? { ...m, id: Date.now().toString() } : m
+              m.id === "streaming" ? { ...m, id: Date.now().toString(), content: assistantContent } : m
             )
           );
           setIsLoading(false);
           showPuppy("Great question! Keep going 📚", "happy", 3000);
-          // Track study progress
+
           if (user && assistantContent.length > 50) {
             const topicName = urlTopic ? decodeURIComponent(urlTopic) : userContent.replace(/^\[(.*?)\]\s*/, "").slice(0, 100);
             try {
               const { data: existing } = await supabase
                 .from("study_progress")
-                .select("id, questions_attempted, questions_correct, mastery_pct")
-                .eq("user_id", user.id)
-                .eq("topic", topicName)
-                .maybeSingle();
+                .select("id, questions_attempted, questions_correct, mastery_pct, last_studied_at")
+                .eq("user_id", user.id).eq("topic", topicName).maybeSingle();
 
-              const isQuiz = mode === "quiz" || mode === "teachback";
-              const attempted = (existing?.questions_attempted || 0) + (isQuiz ? 1 : 0);
-              const correct = (existing?.questions_correct || 0);
-              const newMastery = Math.min(100, (existing?.mastery_pct || 0) + (isQuiz ? 8 : 5));
+              // Decay model: lose 0.5% per day since last study
+              const lastStudied = existing?.last_studied_at ? new Date(existing.last_studied_at) : null;
+              const daysSince = lastStudied ? (Date.now() - lastStudied.getTime()) / 86400000 : 0;
+              const decayedMastery = Math.max(0, (existing?.mastery_pct || 0) - daysSince * 0.5);
+
+              const isTeachOrQuiz = mode === "quiz" || mode === "teachback";
+              const delta = isTeachOrQuiz ? 10 : 2; // 10 for active recall, 2 for exploration
+              const newMastery = Math.min(100, decayedMastery + delta);
+              const attempted = (existing?.questions_attempted || 0) + (isTeachOrQuiz ? 1 : 0);
+              const correct = (existing?.questions_correct || 0) + (isQuiz && isCorrect ? 1 : 0);
               const strength = newMastery >= 75 ? "strong" : newMastery >= 40 ? "moderate" : newMastery > 0 ? "weak" : "not-started";
 
               if (existing) {
-                await supabase
-                  .from("study_progress")
-                  .update({
-                    mastery_pct: newMastery,
-                    strength,
-                    questions_attempted: attempted,
-                    questions_correct: correct,
-                    last_studied_at: new Date().toISOString(),
-                  })
-                  .eq("id", existing.id);
+                await supabase.from("study_progress").update({
+                  mastery_pct: Math.round(newMastery), strength,
+                  questions_attempted: attempted, questions_correct: correct,
+                  last_studied_at: new Date().toISOString(),
+                }).eq("id", existing.id);
               } else {
                 await supabase.from("study_progress").insert({
-                  user_id: user.id,
-                  topic: topicName,
-                  mastery_pct: isQuiz ? 8 : 5,
-                  strength: "weak",
-                  questions_attempted: isQuiz ? 1 : 0,
-                  questions_correct: 0,
+                  user_id: user.id, topic: topicName,
+                  mastery_pct: Math.round(newMastery), strength: "weak",
+                  questions_attempted: isTeachOrQuiz ? 1 : 0,
+                  questions_correct: isQuiz && isCorrect ? 1 : 0,
                   last_studied_at: new Date().toISOString(),
                 });
               }
-            } catch (e) {
-              console.error("Progress tracking error:", e);
-            }
+            } catch (e) { console.error("Progress tracking error:", e); }
           }
 
-          // Award XP
-          if (user) {
-            awardStudyXP(user.id).catch(console.error);
-          }
-
-          if (profile?.voice_enabled && assistantContent) {
-            speak(assistantContent);
-          }
+          if (user) awardStudyXP(user.id).catch(console.error);
+          if (profile?.voice_enabled && assistantContent) speak(assistantContent);
         },
         onError: (error) => {
+          // Remove ghost streaming message on error
+          setMessages((prev) => prev.filter((m) => m.id !== "streaming"));
           toast.error(error);
           setIsLoading(false);
         },
       });
     } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== "streaming"));
       toast.error("Failed to get AI response");
       setIsLoading(false);
     }
@@ -307,7 +314,7 @@ const Study = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <RetainPanel content={msg.content} onRetain={retainAsFlashcards} />
+              <RetainPanel content={msg.content} onRetain={(c) => retainAsFlashcards(c, msg.id)} />
             </motion.div>
           ) : (
             <motion.div
@@ -393,7 +400,7 @@ const Study = () => {
               }`}
             >
               <Icon className="h-3 w-3" />
-              {cfg.label}
+              <span className="hidden sm:inline">{cfg.label}</span>
             </button>
           );
         })}
