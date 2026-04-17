@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_rate_limits: {
+        Row: {
+          call_count: number
+          created_at: string
+          endpoint: string
+          id: string
+          user_id: string
+          window_start: string
+        }
+        Insert: {
+          call_count?: number
+          created_at?: string
+          endpoint?: string
+          id?: string
+          user_id: string
+          window_start?: string
+        }
+        Update: {
+          call_count?: number
+          created_at?: string
+          endpoint?: string
+          id?: string
+          user_id?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       bookmarks: {
         Row: {
           created_at: string
@@ -203,11 +230,14 @@ export type Database = {
         Row: {
           ai_personality: string | null
           created_at: string | null
+          daily_tokens_reset_at: string | null
+          daily_tokens_used: number | null
           difficulty_level: string | null
           display_name: string | null
           id: string
           last_study_date: string | null
           level: number | null
+          onboarding_complete: boolean | null
           puppy_enabled: boolean | null
           selected_board: string | null
           selected_grade: string | null
@@ -220,11 +250,14 @@ export type Database = {
         Insert: {
           ai_personality?: string | null
           created_at?: string | null
+          daily_tokens_reset_at?: string | null
+          daily_tokens_used?: number | null
           difficulty_level?: string | null
           display_name?: string | null
           id: string
           last_study_date?: string | null
           level?: number | null
+          onboarding_complete?: boolean | null
           puppy_enabled?: boolean | null
           selected_board?: string | null
           selected_grade?: string | null
@@ -237,11 +270,14 @@ export type Database = {
         Update: {
           ai_personality?: string | null
           created_at?: string | null
+          daily_tokens_reset_at?: string | null
+          daily_tokens_used?: number | null
           difficulty_level?: string | null
           display_name?: string | null
           id?: string
           last_study_date?: string | null
           level?: number | null
+          onboarding_complete?: boolean | null
           puppy_enabled?: boolean | null
           selected_board?: string | null
           selected_grade?: string | null
@@ -324,7 +360,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      batch_update_progress: { Args: { updates: Json }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
