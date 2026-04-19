@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import EmptyState from "@/components/study/EmptyState";
 import { toast } from "sonner";
+import { Helmet } from "react-helmet-async";
 
 interface BookmarkItem {
   id: string;
@@ -78,6 +79,7 @@ const Bookmarks = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
+      <Helmet><title>Bookmarks · VISU</title></Helmet>
         <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
       </div>
     );

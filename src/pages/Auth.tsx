@@ -8,6 +8,7 @@ import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Mail, Lock, User, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
+import { Helmet } from "react-helmet-async";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -87,6 +88,7 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <Helmet><title>Sign In · VISU</title></Helmet>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

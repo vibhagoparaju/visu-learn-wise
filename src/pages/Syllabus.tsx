@@ -36,6 +36,7 @@ interface Topic {
 
 // Syllabus calls now go through the centralized AI router
 import { generateSyllabus as _generateSyllabus } from "@/services/ai";
+import { Helmet } from "react-helmet-async";
 
 const boards = [
   { id: "cbse", name: "CBSE", desc: "Central Board of Secondary Education" },
@@ -299,6 +300,7 @@ const Syllabus = () => {
       animate="show"
       className="space-y-5 pb-24 md:pb-8"
     >
+      <Helmet><title>Syllabus · VISU</title></Helmet>
       {/* Header */}
       <motion.div variants={item} className="flex items-center gap-3">
         {step !== "board" && (

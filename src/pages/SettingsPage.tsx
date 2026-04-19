@@ -8,6 +8,7 @@ import { usePuppy } from "@/hooks/usePuppy";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import PuppyMascot from "@/components/mascot/PuppyMascot";
+import { Helmet } from "react-helmet-async";
 
 const container = {
   hidden: { opacity: 0 },
@@ -69,6 +70,7 @@ const SettingsPage = () => {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 pb-24 md:pb-8">
+      <Helmet><title>Settings · VISU</title></Helmet>
       <motion.div variants={item}>
         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
         <p className="text-sm text-muted-foreground mt-1">Personalize your AI tutor experience</p>

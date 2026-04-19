@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { validateFile, checkRateLimit } from "@/lib/security";
 import UploadResultCard from "@/components/upload/UploadResultCard";
+import { Helmet } from "react-helmet-async";
 
 type InputMode = "file" | "image" | "url";
 
@@ -220,6 +221,7 @@ const UploadNotes = () => {
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 pb-24 md:pb-8">
+      <Helmet><title>Upload Notes · VISU</title></Helmet>
       <div>
         <h1 className="text-2xl font-bold text-foreground">Upload Notes</h1>
         <p className="text-sm text-muted-foreground mt-1">
