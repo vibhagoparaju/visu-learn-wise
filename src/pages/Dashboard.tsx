@@ -1,8 +1,11 @@
 import { motion } from "framer-motion";
+import { Helmet } from "react-helmet-async";
 import { Upload, MessageSquare, CheckCircle2, Circle, LogOut, BookOpen, Rocket, RefreshCw, Layers, ArrowRight, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import EmptyState from "@/components/study/EmptyState";
@@ -39,71 +42,65 @@ const item = {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { profile, user, signOut } = useAuth();
   const [taskList, setTaskList] = useState<StudyTask[]>([]);
-  const [loadingTasks, setLoadingTasks] = useState(true);
   const [generatingPlan, setGeneratingPlan] = useState(false);
-  const [hasDocuments, setHasDocuments] = useState(false);
-  const [totalTopics, setTotalTopics] = useState(0);
-  const [dueCardCount, setDueCardCount] = useState(0);
-  const [lastStudiedTopic, setLastStudiedTopic] = useState<string | null>(null);
-  const [recentDocs, setRecentDocs] = useState<RecentDoc[]>([]);
-  const [weakTopics, setWeakTopics] = useState<WeakTopic[]>([]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const displayName = profile?.display_name || "Student";
   const streakDays = profile?.streak_days || 0;
 
-  useEffect(() => {
-    if (!user) return;
-    const fetchData = async () => {
-      setLoadingTasks(true);
-
+  const { data, isLoading } = useQuery({
+    queryKey: ["dashboard", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
       const today = new Date().toISOString().split("T")[0];
       const [planRes, docCountRes, progressRes, dueCardsRes, lastStudiedRes, recentDocsRes] = await Promise.all([
-        supabase.from("study_plans").select("tasks").eq("user_id", user.id).eq("plan_date", today).maybeSingle(),
-        supabase.from("documents").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-        supabase.from("study_progress").select("topic, mastery_pct").eq("user_id", user.id),
-        supabase.from("flashcards").select("id", { count: "exact", head: true }).eq("user_id", user.id).lte("next_review_at", new Date().toISOString()),
-        supabase.from("study_progress").select("topic").eq("user_id", user.id).order("last_studied_at", { ascending: false }).limit(1),
-        supabase.from("documents").select("id, file_name, topics, created_at").eq("user_id", user.id).eq("status", "done").order("created_at", { ascending: false }).limit(4),
+        supabase.from("study_plans").select("tasks").eq("user_id", user!.id).eq("plan_date", today).maybeSingle(),
+        supabase.from("documents").select("id", { count: "exact", head: true }).eq("user_id", user!.id),
+        supabase.from("study_progress").select("topic, mastery_pct").eq("user_id", user!.id),
+        supabase.from("flashcards").select("id", { count: "exact", head: true }).eq("user_id", user!.id).lte("next_review_at", new Date().toISOString()),
+        supabase.from("study_progress").select("topic").eq("user_id", user!.id).order("last_studied_at", { ascending: false }).limit(1),
+        supabase.from("documents").select("id, file_name, topics, created_at").eq("user_id", user!.id).eq("status", "done").order("created_at", { ascending: false }).limit(4),
       ]);
 
-      if (planRes.data?.tasks && Array.isArray(planRes.data.tasks)) {
-        setTaskList(planRes.data.tasks as unknown as StudyTask[]);
-      }
-
-      setHasDocuments((docCountRes.count || 0) > 0);
-      setDueCardCount(dueCardsRes.count || 0);
-
       const progressData = progressRes.data || [];
-      setTotalTopics(progressData.length);
-
-      // Weak topics
       const weak = progressData
         .filter((p) => (p.mastery_pct || 0) < 50 && (p.mastery_pct || 0) > 0)
         .sort((a, b) => (a.mastery_pct || 0) - (b.mastery_pct || 0))
         .slice(0, 4) as WeakTopic[];
-      setWeakTopics(weak);
 
-      if (lastStudiedRes.data?.[0]) {
-        setLastStudiedTopic(lastStudiedRes.data[0].topic);
-      }
+      const recentDocs: RecentDoc[] = (recentDocsRes.data || []).map((d) => ({
+        ...d,
+        topics: (d.topics as string[]) || [],
+      }));
 
-      if (recentDocsRes.data) {
-        setRecentDocs(recentDocsRes.data.map((d) => ({
-          ...d,
-          topics: (d.topics as string[]) || [],
-        })));
-      }
+      return {
+        tasks: (planRes.data?.tasks && Array.isArray(planRes.data.tasks)) ? (planRes.data.tasks as unknown as StudyTask[]) : [],
+        hasDocuments: (docCountRes.count || 0) > 0,
+        totalTopics: progressData.length,
+        dueCardCount: dueCardsRes.count || 0,
+        lastStudiedTopic: lastStudiedRes.data?.[0]?.topic || null,
+        recentDocs,
+        weakTopics: weak,
+      };
+    },
+    staleTime: 60_000,
+  });
 
-      setLoadingTasks(false);
-    };
-    fetchData();
-  }, [user]);
+  // Sync local task list when query data arrives
+  useEffect(() => {
+    if (data?.tasks) setTaskList(data.tasks);
+  }, [data?.tasks]);
 
   const completedCount = taskList.filter((t) => t.done).length;
+  const hasDocuments = data?.hasDocuments || false;
+  const totalTopics = data?.totalTopics || 0;
+  const dueCardCount = data?.dueCardCount || 0;
+  const lastStudiedTopic = data?.lastStudiedTopic || null;
+  const recentDocs = data?.recentDocs || [];
   const hasAnyData = hasDocuments || totalTopics > 0 || taskList.length > 0;
 
   const toggleTask = async (index: number) => {
@@ -119,12 +116,16 @@ const Dashboard = () => {
       const tasks = await generateDailyPlan(user.id);
       setTaskList(tasks);
       await saveDailyPlan(user.id, tasks);
+      queryClient.invalidateQueries({ queryKey: ["dashboard", user.id] });
     } catch { /* silent */ }
     setGeneratingPlan(false);
   };
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-8 pb-24 md:pb-8">
+      <Helmet>
+        <title>Dashboard · VISU</title>
+      </Helmet>
       <OnboardingWalkthrough />
       {/* Greeting */}
       <motion.div variants={item}>
@@ -142,47 +143,57 @@ const Dashboard = () => {
         </div>
       </motion.div>
 
-      {/* Continue Study + Quick Revision */}
-      <motion.div variants={item} className="space-y-3">
-        {lastStudiedTopic && (
-          <button
-            onClick={() => navigate(`/study/${encodeURIComponent(lastStudiedTopic)}`)}
-            className="w-full bg-card rounded-2xl p-5 shadow-card text-left hover:shadow-elevated transition-shadow group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="h-11 w-11 rounded-xl gradient-primary flex items-center justify-center flex-shrink-0">
-                <BookOpen className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">Continue Studying</p>
-                <p className="text-xs text-muted-foreground truncate mt-0.5">{lastStudiedTopic}</p>
-              </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            </div>
-          </button>
-        )}
-        {dueCardCount > 0 && (
-          <button
-            onClick={() => navigate("/flashcards")}
-            className="w-full bg-card rounded-2xl p-5 shadow-card text-left hover:shadow-elevated transition-shadow group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="h-11 w-11 rounded-xl gradient-warm flex items-center justify-center flex-shrink-0">
-                <Layers className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">Quick Revision</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{dueCardCount} card{dueCardCount !== 1 ? "s" : ""} due for review</p>
-              </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            </div>
-          </button>
-        )}
-      </motion.div>
+      {/* Loading skeletons */}
+      {isLoading && (
+        <motion.div variants={item} className="space-y-3">
+          <Skeleton className="h-20 rounded-2xl" />
+          <Skeleton className="h-20 rounded-2xl" />
+          <Skeleton className="h-32 rounded-2xl" />
+        </motion.div>
+      )}
 
+      {/* Continue Study + Quick Revision */}
+      {!isLoading && (
+        <motion.div variants={item} className="space-y-3">
+          {lastStudiedTopic && (
+            <button
+              onClick={() => navigate(`/study/${encodeURIComponent(lastStudiedTopic)}`)}
+              className="w-full bg-card rounded-2xl p-5 shadow-card text-left hover:shadow-elevated transition-shadow group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-11 w-11 rounded-xl gradient-primary flex items-center justify-center flex-shrink-0">
+                  <BookOpen className="h-5 w-5 text-primary-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">Continue Studying</p>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">{lastStudiedTopic}</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              </div>
+            </button>
+          )}
+          {dueCardCount > 0 && (
+            <button
+              onClick={() => navigate("/flashcards")}
+              className="w-full bg-card rounded-2xl p-5 shadow-card text-left hover:shadow-elevated transition-shadow group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-11 w-11 rounded-xl gradient-warm flex items-center justify-center flex-shrink-0">
+                  <Layers className="h-5 w-5 text-primary-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">Quick Revision</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{dueCardCount} card{dueCardCount !== 1 ? "s" : ""} due for review</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              </div>
+            </button>
+          )}
+        </motion.div>
+      )}
 
       {/* Recent Activity */}
-      {recentDocs.length > 0 && (
+      {!isLoading && recentDocs.length > 0 && (
         <motion.div variants={item} className="bg-card rounded-2xl p-5 shadow-card">
           <h2 className="text-sm font-semibold text-foreground mb-4">Recent Activity</h2>
           <div className="space-y-3">
@@ -213,8 +224,8 @@ const Dashboard = () => {
         </motion.div>
       )}
 
-      {/* Today's Plan — only show if tasks exist or user has data */}
-      {hasAnyData && (
+      {/* Today's Plan */}
+      {!isLoading && hasAnyData && (
         <motion.div variants={item} className="bg-card rounded-2xl p-5 shadow-card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-foreground">Today's Plan</h2>
@@ -263,7 +274,7 @@ const Dashboard = () => {
       )}
 
       {/* Empty state for new users */}
-      {!loadingTasks && !hasAnyData && (
+      {!isLoading && !hasAnyData && (
         <motion.div variants={item}>
           <EmptyState
             icon={Rocket}
@@ -278,8 +289,8 @@ const Dashboard = () => {
         </motion.div>
       )}
 
-      {/* Quick Actions — minimal */}
-      {hasAnyData && (
+      {/* Quick Actions */}
+      {!isLoading && hasAnyData && (
         <motion.div variants={item} className="flex gap-3">
           <button
             onClick={() => navigate("/study")}
