@@ -168,6 +168,7 @@ const Study = () => {
           }));
           await supabase.from("flashcards").insert(inserts);
           toast.success(`${parsed.length} flashcards saved`, { id: "retain" });
+          triggerPuppy("celebrating");
         } catch {
           toast.error("Failed to create flashcards", { id: "retain" });
         }
