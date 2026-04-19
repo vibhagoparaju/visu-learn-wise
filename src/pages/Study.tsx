@@ -378,6 +378,9 @@ const Study = () => {
           : "h-[calc(100vh-6rem)] md:h-[calc(100vh-4rem)]"
       }`}
     >
+      <Helmet>
+        <title>{urlTopic ? `Study: ${decodeURIComponent(urlTopic)} · VISU` : `Study with ${tutorName} · VISU`}</title>
+      </Helmet>
       <WellnessReminder sessionMinutes={sessionMinutes} />
 
       {/* Header */}
@@ -495,10 +498,22 @@ const Study = () => {
           {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
         </Button>
 
-        <input
+        <textarea
+          ref={textareaRef}
+          rows={1}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
+          onChange={(e) => {
+            setInput(e.target.value);
+            const el = e.target;
+            el.style.height = "auto";
+            el.style.height = Math.min(el.scrollHeight, 120) + "px";
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              sendMessage();
+            }
+          }}
           placeholder={
             isListening
               ? "Listening..."
@@ -510,12 +525,13 @@ const Study = () => {
               ? "Topic for a quick lesson..."
               : `Ask ${tutorName} anything...`
           }
-          className="flex-1 bg-card rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground shadow-card focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+          style={{ resize: "none", overflow: "hidden" }}
+          className="flex-1 bg-card rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground shadow-card focus:outline-none focus:ring-2 focus:ring-ring transition-shadow leading-relaxed"
         />
         <Button
           variant="gradient"
           size="icon"
-          onClick={sendMessage}
+          onClick={() => sendMessage()}
           disabled={!input.trim() || isLoading}
           className="rounded-xl h-11 w-11"
         >
