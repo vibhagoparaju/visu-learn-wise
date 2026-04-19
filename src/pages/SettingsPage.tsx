@@ -5,6 +5,7 @@ import { Sparkles, Volume2, VolumeX, Palette, GraduationCap, User, Moon, Sun, Do
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { usePuppy } from "@/hooks/usePuppy";
+import { useAnimations } from "@/hooks/useAnimations";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import PuppyMascot from "@/components/mascot/PuppyMascot";
@@ -23,6 +24,7 @@ const SettingsPage = () => {
   const { profile, user, refreshProfile } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { enabled: puppyEnabled, setEnabled: setPuppyEnabled } = usePuppy();
+  const { enabled: animEnabled, toggle: toggleAnim, reducedMotion } = useAnimations();
   const [tutorName, setTutorName] = useState(profile?.tutor_name || "VISU");
   const [difficulty, setDifficulty] = useState<"beginner" | "intermediate" | "advanced">(
     (profile?.difficulty_level as any) || "beginner"
@@ -231,6 +233,34 @@ const SettingsPage = () => {
             <PuppyMascot mood="happy" size="lg" message="I'm here to help! 🐾" />
           </div>
         )}
+      </motion.div>
+
+      {/* Puppy Animations Toggle */}
+      <motion.div variants={item} className="bg-card rounded-2xl p-5 shadow-card">
+        <button
+          onClick={toggleAnim}
+          disabled={reducedMotion}
+          className="flex items-center justify-between w-full disabled:opacity-60"
+        >
+          <div className="flex items-center gap-3">
+            <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${animEnabled ? "gradient-primary" : "bg-muted"}`}>
+              <Sparkles className={`h-5 w-5 ${animEnabled ? "text-primary-foreground" : "text-muted-foreground"}`} />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-foreground">Puppy animations</p>
+              <p className="text-xs text-muted-foreground">
+                {reducedMotion ? "Disabled by your system's reduced-motion setting" : "Cute reactions while you study"}
+              </p>
+            </div>
+          </div>
+          <div className={`h-7 w-12 rounded-full transition-colors relative ${animEnabled && !reducedMotion ? "bg-primary" : "bg-muted"}`}>
+            <motion.div
+              className="h-5 w-5 rounded-full bg-white shadow absolute top-1"
+              animate={{ left: animEnabled && !reducedMotion ? 24 : 4 }}
+              transition={{ type: "spring", bounce: 0.3 }}
+            />
+          </div>
+        </button>
       </motion.div>
 
       <motion.div variants={item}>
