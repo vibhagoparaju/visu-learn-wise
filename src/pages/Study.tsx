@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Helmet } from "react-helmet-async";
+import { useDebouncedCallback } from "use-debounce";
 import { Send, Sparkles, User, Maximize2, Minimize2, MessageSquareText, Lightbulb, Mic, MicOff, Volume2, VolumeX, Loader2, HelpCircle, Coffee, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,6 +18,7 @@ import VisualExplanation from "@/components/study/VisualExplanation";
 import VideoExplanation from "@/components/study/VideoExplanation";
 import RetainPanel from "@/components/study/RetainPanel";
 import MessageViewToggle, { type ViewMode } from "@/components/study/MessageViewToggle";
+import AIErrorBoundary from "@/components/AIErrorBoundary";
 import { useParams } from "react-router-dom";
 
 interface Message {
