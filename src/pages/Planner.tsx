@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import EmptyState from "@/components/study/EmptyState";
+import { Helmet } from "react-helmet-async";
 
 interface ExamDeadline {
   id: string;
@@ -95,6 +96,7 @@ const Planner = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
+      <Helmet><title>Planner · VISU</title></Helmet>
         <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
       </div>
     );

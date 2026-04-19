@@ -8,6 +8,7 @@ import { usePuppy } from "@/hooks/usePuppy";
 import { awardQuizXP, trackQuizProgress } from "@/services/xpService";
 import { toast } from "sonner";
 import { sanitizeTopicInput, checkRateLimit } from "@/lib/security";
+import { Helmet } from "react-helmet-async";
 
 interface QuizQuestion {
   question: string;
@@ -105,6 +106,7 @@ const Quiz = () => {
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 pb-24 md:pb-8">
+      <Helmet><title>Quiz · VISU</title></Helmet>
       <div>
         <h1 className="text-2xl font-bold text-foreground">Quiz Mode</h1>
         <p className="text-sm text-muted-foreground mt-1">Test your knowledge with AI-generated quizzes 🎯</p>

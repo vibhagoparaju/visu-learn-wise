@@ -10,6 +10,7 @@ import { awardFlashcardXP } from "@/services/xpService";
 import { toast } from "sonner";
 import EmptyState from "@/components/study/EmptyState";
 import { sanitizeTopicInput, checkRateLimit } from "@/lib/security";
+import { Helmet } from "react-helmet-async";
 
 interface Flashcard {
   id: string;
@@ -151,6 +152,7 @@ const Flashcards = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
+      <Helmet><title>Flashcards · VISU</title></Helmet>
         <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
       </div>
     );

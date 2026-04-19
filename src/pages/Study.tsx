@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Helmet } from "react-helmet-async";
+import { useDebouncedCallback } from "use-debounce";
 import { Send, Sparkles, User, Maximize2, Minimize2, MessageSquareText, Lightbulb, Mic, MicOff, Volume2, VolumeX, Loader2, HelpCircle, Coffee, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,6 +18,7 @@ import VisualExplanation from "@/components/study/VisualExplanation";
 import VideoExplanation from "@/components/study/VideoExplanation";
 import RetainPanel from "@/components/study/RetainPanel";
 import MessageViewToggle, { type ViewMode } from "@/components/study/MessageViewToggle";
+import AIErrorBoundary from "@/components/AIErrorBoundary";
 import { useParams } from "react-router-dom";
 
 interface Message {
@@ -83,6 +86,30 @@ const Study = () => {
 
   const [autoSent, setAutoSent] = useState(false);
   const retainedMessageIds = useRef<Set<string>>(new Set());
+  const pendingProgress = useRef<Map<string, { delta: number; attempts: number; correct: number }>>(new Map());
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Debounced batch flush of mastery updates (5s)
+  const flushProgress = useDebouncedCallback(async () => {
+    if (!user || pendingProgress.current.size === 0) return;
+    const updates: Array<Record<string, unknown>> = [];
+    for (const [topic, agg] of pendingProgress.current.entries()) {
+      updates.push({
+        topic,
+        mastery_pct: Math.round(agg.delta),
+        strength: agg.delta >= 75 ? "strong" : agg.delta >= 40 ? "moderate" : "weak",
+        questions_attempted: agg.attempts,
+        questions_correct: agg.correct,
+      });
+    }
+    pendingProgress.current.clear();
+    try {
+      await supabase.rpc("batch_update_progress", { updates: updates as any });
+    } catch (e) {
+      console.error("batch_update_progress failed:", e);
+    }
+  }, 5000);
+
   useEffect(() => {
     if (urlTopic && !autoSent && input) {
       setAutoSent(true);
@@ -95,6 +122,13 @@ const Study = () => {
     const interval = setInterval(() => setSessionMinutes((m) => m + 1), 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // Flush any pending progress on unmount
+  useEffect(() => {
+    return () => {
+      flushProgress.flush();
+    };
+  }, [flushProgress]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -290,39 +324,25 @@ const Study = () => {
         {/* Content based on active view */}
         <AnimatePresence mode="wait">
           {viewMode === "visual" && isComplete ? (
-            <motion.div
-              key="visual"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <VisualExplanation content={msg.content} topic={urlTopic ? decodeURIComponent(urlTopic) : undefined} />
+            <motion.div key="visual" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <AIErrorBoundary label="Visual">
+                <VisualExplanation content={msg.content} topic={urlTopic ? decodeURIComponent(urlTopic) : undefined} />
+              </AIErrorBoundary>
             </motion.div>
           ) : viewMode === "video" && isComplete ? (
-            <motion.div
-              key="video"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <VideoExplanation content={msg.content} topic={urlTopic ? decodeURIComponent(urlTopic) : undefined} />
+            <motion.div key="video" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <AIErrorBoundary label="Video">
+                <VideoExplanation content={msg.content} topic={urlTopic ? decodeURIComponent(urlTopic) : undefined} />
+              </AIErrorBoundary>
             </motion.div>
           ) : viewMode === "retain" && isComplete ? (
-            <motion.div
-              key="retain"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <RetainPanel content={msg.content} onRetain={(c) => retainAsFlashcards(c, msg.id)} />
+            <motion.div key="retain" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <AIErrorBoundary label="Retain">
+                <RetainPanel content={msg.content} onRetain={(c) => retainAsFlashcards(c, msg.id)} />
+              </AIErrorBoundary>
             </motion.div>
           ) : (
-            <motion.div
-              key="explain"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
+            <motion.div key="explain" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               {msg.role === "assistant" ? (
                 <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-code:text-primary prose-code:bg-accent prose-code:px-1 prose-code:rounded">
                   <ReactMarkdown>{msg.content}</ReactMarkdown>
@@ -358,6 +378,9 @@ const Study = () => {
           : "h-[calc(100vh-6rem)] md:h-[calc(100vh-4rem)]"
       }`}
     >
+      <Helmet>
+        <title>{urlTopic ? `Study: ${decodeURIComponent(urlTopic)} · VISU` : `Study with ${tutorName} · VISU`}</title>
+      </Helmet>
       <WellnessReminder sessionMinutes={sessionMinutes} />
 
       {/* Header */}
@@ -475,10 +498,22 @@ const Study = () => {
           {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
         </Button>
 
-        <input
+        <textarea
+          ref={textareaRef}
+          rows={1}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
+          onChange={(e) => {
+            setInput(e.target.value);
+            const el = e.target;
+            el.style.height = "auto";
+            el.style.height = Math.min(el.scrollHeight, 120) + "px";
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              sendMessage();
+            }
+          }}
           placeholder={
             isListening
               ? "Listening..."
@@ -490,12 +525,13 @@ const Study = () => {
               ? "Topic for a quick lesson..."
               : `Ask ${tutorName} anything...`
           }
-          className="flex-1 bg-card rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground shadow-card focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+          style={{ resize: "none", overflow: "hidden" }}
+          className="flex-1 bg-card rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground shadow-card focus:outline-none focus:ring-2 focus:ring-ring transition-shadow leading-relaxed"
         />
         <Button
           variant="gradient"
           size="icon"
-          onClick={sendMessage}
+          onClick={() => sendMessage()}
           disabled={!input.trim() || isLoading}
           className="rounded-xl h-11 w-11"
         >

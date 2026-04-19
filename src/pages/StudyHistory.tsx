@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import EmptyState from "@/components/study/EmptyState";
+import { Helmet } from "react-helmet-async";
 
 interface HistoryDoc {
   id: string;
@@ -78,6 +79,7 @@ const StudyHistory = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
+      <Helmet><title>Study History · VISU</title></Helmet>
         <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
       </div>
     );

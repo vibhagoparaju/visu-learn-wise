@@ -3,6 +3,7 @@ import { Flame, Star, Zap, Award, BookOpen, Brain, Trophy } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Helmet } from "react-helmet-async";
 
 const badgeDefinitions = [
   { icon: Flame, label: "3-Day Streak", desc: "Study 3 days in a row", color: "text-orange-500", check: (p: any) => (p?.streak_days || 0) >= 3 },
@@ -62,6 +63,7 @@ const Rewards = () => {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 pb-24 md:pb-8">
+      <Helmet><title>Rewards · VISU</title></Helmet>
       <motion.div variants={item}>
         <h1 className="text-2xl font-bold text-foreground">Rewards</h1>
         <p className="text-sm text-muted-foreground mt-1">Keep learning to earn XP and unlock badges! 🏆</p>
