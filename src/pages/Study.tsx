@@ -59,7 +59,7 @@ const modeConfig: Record<StudyMode, { label: string; icon: any; desc: string }> 
 
 const Study = () => {
   const { profile, user } = useAuth();
-  const { showMessage: showPuppy, setMood: setPuppyMood } = usePuppy();
+  const { showMessage: showPuppy, setMood: setPuppyMood, triggerState: triggerPuppy } = usePuppy();
   const { topic: urlTopic } = useParams();
   const tutorName = profile?.tutor_name || "VISU";
   const difficulty = profile?.difficulty_level || "beginner";
@@ -195,12 +195,17 @@ const Study = () => {
     setMessages(newMessages);
     setInput("");
     setIsLoading(true);
-    setPuppyMood("thinking");
+    triggerPuppy("thinking");
 
     let assistantContent = "";
+    let firstChunkSeen = false;
 
     const upsertAssistant = (chunk: string) => {
       assistantContent += chunk;
+      if (!firstChunkSeen) {
+        firstChunkSeen = true;
+        triggerPuppy("studying");
+      }
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (last?.role === "assistant" && last.id === "streaming") {
@@ -226,6 +231,7 @@ const Study = () => {
           // Strip RESULT marker from displayed content (quiz mode)
           const isQuiz = mode === "quiz";
           const isCorrect = isQuiz && /RESULT:CORRECT\b/.test(assistantContent);
+          const isIncorrect = isQuiz && /RESULT:INCORRECT\b/.test(assistantContent);
           if (isQuiz) {
             assistantContent = assistantContent.replace(/RESULT:(CORRECT|INCORRECT|NEW)\b/g, "").trim();
           }
@@ -235,7 +241,9 @@ const Study = () => {
             )
           );
           setIsLoading(false);
-          showPuppy("Great question! Keep going 📚", "happy", 3000);
+          if (isCorrect) triggerPuppy("correct");
+          else if (isIncorrect) triggerPuppy("incorrect");
+          else showPuppy("Great question! Keep going 📚", "happy", 3000);
 
           if (user && assistantContent.length > 50) {
             const topicName = urlTopic ? decodeURIComponent(urlTopic) : userContent.replace(/^\[(.*?)\]\s*/, "").slice(0, 100);
