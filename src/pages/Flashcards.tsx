@@ -24,7 +24,7 @@ interface Flashcard {
 
 const Flashcards = () => {
   const { user } = useAuth();
-  const { showMessage: showPuppy } = usePuppy();
+  const { showMessage: showPuppy, triggerState: triggerPuppy } = usePuppy();
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -36,6 +36,11 @@ const Flashcards = () => {
     if (!user) return;
     fetchCards();
   }, [user]);
+
+  // Set studying state while actively reviewing cards
+  useEffect(() => {
+    if (cards.length > 0 && !loading) triggerPuppy("studying");
+  }, [cards.length, loading, triggerPuppy]);
 
   const fetchCards = async () => {
     setLoading(true);
@@ -80,11 +85,15 @@ const Flashcards = () => {
     }
 
     setFlipped(false);
+    if (correct) triggerPuppy("correct");
+    else triggerPuppy("incorrect");
+
     if (currentIdx < cards.length - 1) {
       setCurrentIdx((i) => i + 1);
       if (correct) showPuppy("Nice one! 🎉", "happy", 2500);
       else showPuppy("You'll get it next time! 💪", "encouraging", 2500);
     } else {
+      triggerPuppy("celebrating");
       showPuppy("All done! Great session! 🌟", "happy", 4000);
       toast.success("All cards reviewed! 🎉");
       fetchCards();

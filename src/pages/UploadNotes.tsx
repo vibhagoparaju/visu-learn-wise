@@ -4,6 +4,7 @@ import { Upload, FileText, CheckCircle2, Sparkles, BookOpen, FlaskConical, X, Al
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
+import { usePuppy } from "@/hooks/usePuppy";
 import { supabase } from "@/integrations/supabase/client";
 import { analyzeDocument, analyzeUrl, analyzeImage } from "@/services/ai";
 import { toast } from "sonner";
@@ -49,6 +50,7 @@ function fileToBase64(file: File): Promise<string> {
 
 const UploadNotes = () => {
   const { user } = useAuth();
+  const { triggerState: triggerPuppy } = usePuppy();
   const navigate = useNavigate();
   const [items, setItems] = useState<UploadedItem[]>([]);
   const [dragActive, setDragActive] = useState(false);
@@ -120,6 +122,7 @@ const UploadNotes = () => {
       if (docError) throw docError;
 
       setItems((prev) => prev.map((f) => (f.name === name ? { ...f, status: "processing" } : f)));
+      triggerPuppy("thinking", 60_000);
 
       let analysis;
       if (isImage) {
@@ -143,6 +146,7 @@ const UploadNotes = () => {
       setItems((prev) => prev.map((f) =>
         f.name === name ? { ...f, status: "done", topics: analysis.topics, summary: analysis.summary, key_points: analysis.key_points, formulas: analysis.formulas } : f
       ));
+      triggerPuppy("correct");
       toast.success(`${name} analyzed successfully!`);
     } catch (err: any) {
       // Cleanup orphaned storage file
@@ -174,6 +178,7 @@ const UploadNotes = () => {
     setUrlLoading(true);
     setItems((prev) => [...prev, { name: displayName, size: url, status: "processing" }]);
     setUrlInput("");
+    triggerPuppy("thinking", 60_000);
 
     try {
       const analysis = await analyzeUrl(url);
@@ -192,6 +197,7 @@ const UploadNotes = () => {
       setItems((prev) => prev.map((f) =>
         f.name === displayName ? { ...f, status: "done", topics: analysis.topics, summary: analysis.summary, key_points: analysis.key_points, formulas: analysis.formulas } : f
       ));
+      triggerPuppy("correct");
       toast.success("URL analyzed successfully!");
     } catch (err: any) {
       setItems((prev) => prev.map((f) => (f.name === displayName ? { ...f, status: "error", error: err.message } : f)));

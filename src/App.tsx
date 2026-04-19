@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { PuppyProvider } from "@/hooks/usePuppy";
+import { AnimationProvider } from "@/hooks/useAnimations";
 import FloatingPuppy from "@/components/mascot/FloatingPuppy";
 import AppLayout from "./components/layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
@@ -63,6 +64,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+            <AnimationProvider>
             <PuppyProvider>
               <FloatingPuppy />
             <Routes>
@@ -92,6 +94,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
             </PuppyProvider>
+            </AnimationProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
