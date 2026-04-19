@@ -1,7 +1,8 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { LayoutDashboard, BookOpen, Library, Layers, BarChart3, Coffee } from "lucide-react";
+import { LayoutDashboard, BookOpen, Library, Layers, BarChart3 } from "lucide-react";
 import GlobalSearch from "@/components/GlobalSearch";
+import puppyIcon from "@/assets/visu-puppy-icon.jpeg";
 
 const items = [
   { to: "/", icon: LayoutDashboard, label: "Home" },
@@ -17,8 +18,8 @@ const MobileNav = () => {
   return (
     <>
       <header className="md:hidden flex items-center gap-2.5 p-3 border-b border-border glass sticky top-0 z-40">
-        <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center flex-shrink-0">
-          <Coffee className="h-4 w-4 text-primary-foreground" />
+        <div className="h-8 w-8 rounded-lg overflow-hidden bg-card flex items-center justify-center ring-1 ring-border flex-shrink-0">
+          <img src={puppyIcon} alt="VISU mascot" loading="lazy" decoding="async" className="h-full w-full object-cover" />
         </div>
         <div className="flex-1">
           <GlobalSearch />
