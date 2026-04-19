@@ -15,6 +15,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import GlobalSearch from "@/components/GlobalSearch";
+import puppyIcon from "@/assets/visu-puppy-icon.jpeg";
 
 const navGroups = [
   {
@@ -57,8 +58,8 @@ const AppSidebar = () => {
   return (
     <aside className="hidden md:flex flex-col w-60 border-r border-border bg-sidebar min-h-screen p-4">
       <div className="flex items-center gap-2.5 px-3 mb-6">
-        <div className="h-9 w-9 rounded-xl gradient-primary flex items-center justify-center">
-          <Coffee className="h-4 w-4 text-primary-foreground" />
+        <div className="h-9 w-9 rounded-xl overflow-hidden bg-card flex items-center justify-center ring-1 ring-border">
+          <img src={puppyIcon} alt="VISU mascot" loading="lazy" decoding="async" className="h-full w-full object-cover" />
         </div>
         <div>
           <span className="text-lg font-bold text-gradient font-display">VISU</span>
