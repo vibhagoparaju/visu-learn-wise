@@ -4,9 +4,10 @@ import { Upload, MessageSquare, CheckCircle2, Circle, LogOut, BookOpen, Rocket, 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { usePuppy } from "@/hooks/usePuppy";
 import { supabase } from "@/integrations/supabase/client";
 import EmptyState from "@/components/study/EmptyState";
 import OnboardingWalkthrough from "@/components/onboarding/OnboardingWalkthrough";
@@ -44,6 +45,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { profile, user, signOut } = useAuth();
+  const { triggerState: triggerPuppy } = usePuppy();
   const [taskList, setTaskList] = useState<StudyTask[]>([]);
   const [generatingPlan, setGeneratingPlan] = useState(false);
 
@@ -94,6 +96,16 @@ const Dashboard = () => {
   useEffect(() => {
     if (data?.tasks) setTaskList(data.tasks);
   }, [data?.tasks]);
+
+  // Celebrate streak milestones (7, 30, 100 days)
+  const lastStreakRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (lastStreakRef.current === streakDays) return;
+    lastStreakRef.current = streakDays;
+    if ([7, 30, 100].includes(streakDays)) {
+      triggerPuppy("celebrating");
+    }
+  }, [streakDays, triggerPuppy]);
 
   const completedCount = taskList.filter((t) => t.done).length;
   const hasDocuments = data?.hasDocuments || false;
