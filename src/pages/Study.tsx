@@ -390,7 +390,7 @@ const Study = () => {
       <Helmet>
         <title>{urlTopic ? `Study: ${decodeURIComponent(urlTopic)} · VISU` : `Study with ${tutorName} · VISU`}</title>
       </Helmet>
-      <WellnessReminder sessionMinutes={sessionMinutes} />
+      <WellnessReminder paused={isLoading} />
 
       {/* Header */}
       <motion.div
