@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, MessageSquare, Brain, BarChart3, Layers, Trophy, ArrowRight, X, Sparkles } from "lucide-react";
+import { Upload, MessageSquare, Brain, BarChart3, Layers, Trophy, ArrowRight, X, Sparkles, Paintbrush } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PuppyMascot, { type PuppyMood } from "@/components/mascot/PuppyMascot";
+import ThemePicker from "@/components/settings/ThemePicker";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -13,9 +14,19 @@ interface OnboardingStep {
   gradient: string;
   puppyMood: PuppyMood;
   puppyMessage: string;
+  kind?: "info" | "theme";
 }
 
 const steps: OnboardingStep[] = [
+  {
+    icon: Paintbrush,
+    title: "Pick your vibe",
+    description: "Choose a theme that feels like home. You can change it anytime in Settings.",
+    gradient: "gradient-accent",
+    puppyMood: "happy",
+    puppyMessage: "Make it yours! 🎨",
+    kind: "theme",
+  },
   {
     icon: Upload,
     title: "Upload Your Notes",
@@ -169,6 +180,11 @@ const OnboardingWalkthrough = () => {
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {step.description}
                   </p>
+                  {step.kind === "theme" && (
+                    <div className="mt-5 text-left">
+                      <ThemePicker />
+                    </div>
+                  )}
                 </motion.div>
               </AnimatePresence>
             </div>
