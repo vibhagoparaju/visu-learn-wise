@@ -6,7 +6,6 @@
 
 @layer base {
   /* Default = Calm (olive + cream) */
-  :root,
   .theme-calm {
     --background: 42 32% 93%;
     --foreground: 70 20% 14%;
