@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Volume2, VolumeX, Palette, GraduationCap, User, Moon, Sun, Dog } from "lucide-react";
+import { Sparkles, Volume2, VolumeX, Palette, GraduationCap, User, Moon, Sun, Dog, Leaf } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { usePuppy } from "@/hooks/usePuppy";
 import { useAnimations } from "@/hooks/useAnimations";
+import { useWellness, type WellnessInterval } from "@/hooks/useWellness";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import PuppyMascot from "@/components/mascot/PuppyMascot";
@@ -25,6 +26,7 @@ const SettingsPage = () => {
   const { theme, toggleTheme } = useTheme();
   const { enabled: puppyEnabled, setEnabled: setPuppyEnabled } = usePuppy();
   const { enabled: animEnabled, toggle: toggleAnim, reducedMotion } = useAnimations();
+  const { enabled: wellnessEnabled, intervalMinutes: wellnessInterval, setEnabled: setWellnessEnabled, setInterval: setWellnessInterval } = useWellness();
   const [tutorName, setTutorName] = useState(profile?.tutor_name || "VISU");
   const [difficulty, setDifficulty] = useState<"beginner" | "intermediate" | "advanced">(
     (profile?.difficulty_level as any) || "beginner"
