@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { PuppyProvider } from "@/hooks/usePuppy";
 import { AnimationProvider } from "@/hooks/useAnimations";
+import { WellnessProvider } from "@/hooks/useWellness";
 import FloatingPuppy from "@/components/mascot/FloatingPuppy";
 import AppLayout from "./components/layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
@@ -65,6 +66,7 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <AnimationProvider>
+            <WellnessProvider>
             <PuppyProvider>
               <FloatingPuppy />
             <Routes>
@@ -94,6 +96,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
             </PuppyProvider>
+            </WellnessProvider>
             </AnimationProvider>
           </AuthProvider>
         </BrowserRouter>
