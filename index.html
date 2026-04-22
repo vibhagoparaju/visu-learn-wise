@@ -22,6 +22,21 @@
 </head>
 
   <body>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('visu-theme');
+          var valid = ['calm', 'dark-premium', 'royal', 'midnight'];
+          if (t === 'dark') t = 'dark-premium';
+          if (t === 'light') t = 'calm';
+          if (valid.indexOf(t) === -1) t = 'calm';
+          document.documentElement.classList.add('theme-' + t);
+          if (t !== 'calm') document.documentElement.classList.add('dark');
+        } catch (e) {
+          document.documentElement.classList.add('theme-calm');
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
