@@ -265,6 +265,53 @@ const SettingsPage = () => {
         </button>
       </motion.div>
 
+      {/* Wellness Reminders */}
+      <motion.div variants={item} className="bg-card rounded-2xl p-5 shadow-card space-y-4">
+        <button onClick={() => setWellnessEnabled(!wellnessEnabled)} className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-3">
+            <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${wellnessEnabled ? "gradient-primary" : "bg-muted"}`}>
+              <Leaf className={`h-5 w-5 ${wellnessEnabled ? "text-primary-foreground" : "text-muted-foreground"}`} />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-foreground">Wellness reminders</p>
+              <p className="text-xs text-muted-foreground">Gentle nudges to rest your eyes &amp; stretch</p>
+            </div>
+          </div>
+          <div className={`h-7 w-12 rounded-full transition-colors relative ${wellnessEnabled ? "bg-primary" : "bg-muted"}`}>
+            <motion.div
+              className="h-5 w-5 rounded-full bg-white shadow absolute top-1"
+              animate={{ left: wellnessEnabled ? 24 : 4 }}
+              transition={{ type: "spring", bounce: 0.3 }}
+            />
+          </div>
+        </button>
+        {wellnessEnabled && (
+          <div className="space-y-2 pt-1">
+            <p className="text-xs text-muted-foreground">Break interval</p>
+            <div className="grid grid-cols-4 gap-2">
+              {([20, 30, 45, 60] as WellnessInterval[]).map((m) => (
+                <motion.button
+                  key={m}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setWellnessInterval(m)}
+                  className={`p-3 rounded-xl text-center transition-all border ${
+                    wellnessInterval === m
+                      ? "border-primary bg-accent shadow-glow"
+                      : "border-border bg-muted/50 hover:border-primary/30"
+                  }`}
+                >
+                  <p className={`text-sm font-semibold ${wellnessInterval === m ? "text-primary" : "text-foreground"}`}>{m}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">min</p>
+                </motion.button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground pt-1">
+              Reminders pause automatically when you're idle or away.
+            </p>
+          </div>
+        )}
+      </motion.div>
+
       <motion.div variants={item}>
         <Button
           variant="gradient"
